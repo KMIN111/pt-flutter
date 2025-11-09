@@ -351,12 +351,14 @@ class TestResult {
   final String title;
   final String description;
   final String advice;
+  final Color color;
 
   TestResult({
     required this.score,
     required this.title,
     required this.description,
     required this.advice,
+    required this.color,
   });
 }
 
@@ -405,25 +407,33 @@ class _SurveyScreenState extends State<SurveyScreen> {
               score: totalScore,
               title: "정상",
               description: "우울증상이 거의 없습니다.",
-              advice: "현재 상태를 잘 유지하세요.");
+              advice: "현재 상태를 잘 유지하세요.",
+              color: Colors.green,
+          );
         } else if (totalScore >= 21 && totalScore <= 30) {
           return TestResult(
               score: totalScore,
               title: "경미한 우울",
               description: "가벼운 우울감이 있습니다.",
-              advice: "기분 전환을 위한 활동을 해보세요.");
+              advice: "기분 전환을 위한 활동을 해보세요.",
+              color: Colors.blue,
+          );
         } else if (totalScore >= 31 && totalScore <= 40) {
           return TestResult(
               score: totalScore,
               title: "위험한 우울",
               description: "심한 우울 증세를 보입니다.",
-              advice: "심리 상담이나 전문가 도움을 고려해보세요.");
+              advice: "심리 상담이나 전문가 도움을 고려해보세요.",
+              color: Colors.yellow,
+          );
         } else if (totalScore >= 41 && totalScore <= 50) {
           return TestResult(
               score: totalScore,
               title: "심각한 우울",
               description: "전문가의 상담이 필요합니다.",
-              advice: "가까운 상담 센터를 방문하세요.");
+              advice: "가까운 상담 센터를 방문하세요.",
+              color: Colors.red,
+          );
         }
         break;
 
@@ -434,25 +444,33 @@ class _SurveyScreenState extends State<SurveyScreen> {
               score: totalScore,
               title: "정상",
               description: "불안 수준이 정상 범위입니다.",
-              advice: "건강한 정신 상태를 유지하고 계십니다.");
+              advice: "건강한 정신 상태를 유지하고 계십니다.",
+              color: Colors.green,
+          );
         } else if (totalScore >= 21 && totalScore <= 30) {
           return TestResult(
               score: totalScore,
               title: "경미한 불안",
               description: "약간의 불안 증상이 있습니다.",
-              advice: "이완 기법이나 명상을 통해 불안을 관리해보세요.");
+              advice: "이완 기법이나 명상을 통해 불안을 관리해보세요.",
+              color: Colors.blue,
+          );
         } else if (totalScore >= 31 && totalScore <= 40) {
           return TestResult(
               score: totalScore,
               title: "중등도 불안",
               description: "불안 증상이 의심됩니다.",
-              advice: "심리 상담이나 전문가 도움을 고려해보세요.");
+              advice: "심리 상담이나 전문가 도움을 고려해보세요.",
+              color: Colors.yellow,
+          );
         } else if (totalScore >= 41 && totalScore <= 50) {
           return TestResult(
               score: totalScore,
               title: "심각한 불안",
               description: "즉시 전문가 상담이 필요합니다.",
-              advice: "일상생활에 지장을 줄 수 있는 불안 증상이 있습니다.");
+              advice: "일상생활에 지장을 줄 수 있는 불안 증상이 있습니다.",
+              color: Colors.red,
+          );
         }
         break;
 
@@ -463,25 +481,33 @@ class _SurveyScreenState extends State<SurveyScreen> {
               score: totalScore,
               title: "정상",
               description: "스트레스 수준이 정상 범위입니다.",
-              advice: "건강한 정신 상태를 유지하고 계십니다.");
+              advice: "건강한 정신 상태를 유지하고 계십니다.",
+              color: Colors.green,
+          );
         } else if (totalScore >= 21 && totalScore <= 30) {
           return TestResult(
               score: totalScore,
               title: "경미한 스트레스",
               description: "약간의 스트레스 증상이 있습니다.",
-              advice: "가벼운 명상이나 기록 등을 통해 스트레스를 관리해보세요.");
+              advice: "가벼운 명상이나 기록 등을 통해 스트레스를 관리해보세요.",
+              color: Colors.blue,
+          );
         } else if (totalScore >= 31 && totalScore <= 40) {
           return TestResult(
               score: totalScore,
               title: "중등도 스트레스",
               description: "스트레스 증상이 의심됩니다.",
-              advice: "심리 상담이나 전문가 도움을 고려해보세요.");
+              advice: "심리 상담이나 전문가 도움을 고려해보세요.",
+              color: Colors.yellow,
+          );
         } else if (totalScore >= 41 && totalScore <= 50) {
           return TestResult(
               score: totalScore,
               title: "심각한 스트레스",
               description: "즉시 전문가 상담이 필요합니다.",
-              advice: "일상생활에 지장을 줄 수 있는 스트레스 증상이 있습니다.");
+              advice: "일상생활에 지장을 줄 수 있는 스트레스 증상이 있습니다.",
+              color: Colors.red,
+          );
         }
         break;
 
@@ -492,25 +518,33 @@ class _SurveyScreenState extends State<SurveyScreen> {
               score: totalScore,
               title: "정상",
               description: "자살 위험도 수준이 정상 범위입니다.",
-              advice: "건강한 정신 상태를 유지하고 계십니다.");
+              advice: "건강한 정신 상태를 유지하고 계십니다.",
+              color: Colors.green,
+          );
         } else if (totalScore >= 21 && totalScore <= 30) {
           return TestResult(
               score: totalScore,
               title: "경미한 위험 단계",
               description: "약간의 불안 증상이 있습니다.",
-              advice: "이완 기법이나 명상을 통해 불안을 관리해보세요.");
+              advice: "이완 기법이나 명상을 통해 불안을 관리해보세요.",
+              color: Colors.blue,
+          );
         } else if (totalScore >= 31 && totalScore <= 40) {
           return TestResult(
               score: totalScore,
               title: "중등도 위험 상태",
               description: "불안한 자살 위험도 상태가 의심됩니다.",
-              advice: "심리 상담이나 전문가 도움을 고려해보세요.");
+              advice: "심리 상담이나 전문가 도움을 고려해보세요.",
+              color: Colors.yellow,
+          );
         } else if (totalScore >= 41 && totalScore <= 50) {
           return TestResult(
               score: totalScore,
               title: "심각한 위험 상태",
               description: "즉시 전문가 상담이 필요합니다.",
-              advice: "일상생활에 지장을 줄 수 있는 위험도 상태입니다.");
+              advice: "일상생활에 지장을 줄 수 있는 위험도 상태입니다.",
+              color: Colors.red,
+          );
         }
         break;
     }
@@ -520,7 +554,9 @@ class _SurveyScreenState extends State<SurveyScreen> {
         score: totalScore,
         title: "결과 처리 오류",
         description: "점수 범위를 확인하거나 관리자에게 문의하세요.",
-        advice: "다시 테스트해주세요.");
+        advice: "다시 테스트해주세요.",
+        color: Colors.grey,
+    );
   }
 
   // 4. 다이얼로그 내부에 표시될 주의사항 카드
@@ -597,7 +633,7 @@ class _SurveyScreenState extends State<SurveyScreen> {
                 style: GoogleFonts.roboto(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: kColorTextTitle, // 파일 상단에 정의된 색상
+                  color: result.color, // 파일 상단에 정의된 색상
                 ),
               ),
               const SizedBox(height: 8),
