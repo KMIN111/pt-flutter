@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'add_contact_sheet.dart'; // [!!] 팝업창 위젯 import
+import 'personal_info_screen.dart'; // [!!] 1. 새로 만든 페이지 import
 
 // RTF 파일에서 정의된 색상 상수
 const Color kPageBackground = Color(0xFFF9FAFB);
@@ -15,7 +16,7 @@ const Color kTextPrimary = Color(0xFF111827);
 const Color kTextSecondary = Color(0xFF6B7280);
 
 
-// [!!] 1. 연락처 데이터를 관리할 클래스(모델)를 정의합니다.
+// [!!] 연락처 데이터를 관리할 클래스(모델)를 정의합니다.
 class EmergencyContact {
   String name;
   String phone;
@@ -36,7 +37,7 @@ class EmergencyContact {
 }
 
 
-// [!!] 2. StatelessWidget -> StatefulWidget로 변경
+// [!!] StatefulWidget (기존과 동일)
 class ProfileTab extends StatefulWidget {
   const ProfileTab({Key? key}) : super(key: key);
 
@@ -44,10 +45,10 @@ class ProfileTab extends StatefulWidget {
   _ProfileTabState createState() => _ProfileTabState();
 }
 
-// [!!] 3. State 클래스 생성
+// [!!] State 클래스 (기존과 동일)
 class _ProfileTabState extends State<ProfileTab> {
 
-  // [!!] 4. 연락처 목록을 '상태'로 관리합니다.
+  // [!!] 연락처 목록 상태 (기존과 동일)
   final List<EmergencyContact> _contacts = [
     EmergencyContact(
       name: '김엄마',
@@ -75,7 +76,7 @@ class _ProfileTabState extends State<ProfileTab> {
     ),
   ];
 
-  // [!!] 5. build 메서드 및 모든 헬퍼 메서드를 State로 이동
+  // [!!] build 메서드 (기존과 동일)
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -88,7 +89,7 @@ class _ProfileTabState extends State<ProfileTab> {
           SizedBox(height: 24),
           _NotificationSettingsCard(),
           SizedBox(height: 24),
-          _buildAccountCard(),
+          _buildAccountCard(), // [!!] 2. 이 위젯이 수정되었습니다.
           SizedBox(height: 24),
           _buildDeleteAccountCard(),
         ],
@@ -96,7 +97,7 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
-  // --- 1. 사용자 스탯 카드 ('DIV-4') ---
+  // --- 1. 사용자 스탯 카드 (기존과 동일) ---
   Widget _buildUserStatsCard() {
     return _buildCardContainer(
       child: Column(
@@ -146,7 +147,7 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
-  // --- 2. 안심 연락망 카드 ('DIV-38') ---
+  // --- 2. 안심 연락망 카드 (기존과 동일) ---
   Widget _buildEmergencyContactsCard(BuildContext context) {
     return _buildCardContainer(
       child: Column(
@@ -162,7 +163,7 @@ class _ProfileTabState extends State<ProfileTab> {
               // 'BUTTON-43' (추가 버튼)
               InkWell(
                 onTap: () {
-                  // [!!] 6. '추가' 모드로 팝업 호출 (contact: null)
+                  // '추가' 모드로 팝업 호출 (contact: null)
                   _showAddContactModal(context);
                 },
                 child: CircleAvatar(
@@ -184,13 +185,13 @@ class _ProfileTabState extends State<ProfileTab> {
           ),
           SizedBox(height: 20),
 
-          // [!!] 7. 동적으로 연락처 목록 생성
+          // 동적으로 연락처 목록 생성
           Column(
             children: _contacts.map((contact) {
               return _buildContactItem(
                 contact: contact, // 연락처 객체 전달
                 onEdit: () {
-                  // [!!] 8. '수정' 모드로 팝업 호출 (contact 객체 전달)
+                  // '수정' 모드로 팝업 호출 (contact 객체 전달)
                   _showAddContactModal(context, contact: contact);
                 },
               );
@@ -201,21 +202,20 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
-  // [!!] 9. 팝업 띄우기 함수 수정 (contact 파라미터 추가)
+  // [!!] 팝업 띄우기 함수 (기존과 동일)
   void _showAddContactModal(BuildContext context, {EmergencyContact? contact}) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (BuildContext bContext) {
-        // [!!] 10. 팝업 시트에 contact 정보 전달
         return AddContactBottomSheet(
           contact: contact,
           onSave: (String name, String phone, String tag) {
-            // [!!] 11. 저장 콜백 로직
+            // 저장 콜백 로직
             setState(() {
               if (contact == null) {
-                // '추가' 모드 (새 연락처 추가 - 아이콘/색상은 임시)
+                // '추가' 모드
                 _contacts.add(
                   EmergencyContact(
                     name: name,
@@ -227,7 +227,7 @@ class _ProfileTabState extends State<ProfileTab> {
                   ),
                 );
               } else {
-                // '수정' 모드 (기존 연락처 업데이트)
+                // '수정' 모드
                 contact.name = name;
                 contact.phone = phone;
                 contact.tag = tag;
@@ -240,7 +240,7 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
-  // --- 3. 알림 설정 카드 ('DIV-80') ---
+  // --- 3. 알림 설정 카드 (기존과 동일) ---
   Widget _NotificationSettingsCard() {
     return StatefulBuilder(
       builder: (context, setState) {
@@ -281,8 +281,16 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
-  // --- 4. 계정 설정 카드 ('DIV-127') ---
+  // [!!] 3. 계정 설정 카드 (수정됨) ---
   Widget _buildAccountCard() {
+    // [!!] 4. 공통으로 사용할 내비게이션 로직 정의
+    VoidCallback navigateToSettings = () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const PersonalInfoScreen()),
+      );
+    };
+
     return _buildCardContainer(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -292,27 +300,19 @@ class _ProfileTabState extends State<ProfileTab> {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
           ),
           SizedBox(height: 16),
+          // [!!] 5. onTap 핸들러를 전달하도록 _buildMenuItem 수정
           _buildMenuItem(
             icon: Icons.lock_person,
             iconColor: kPrimaryBlue,
             text: '개인정보 설정',
-          ),
-          _buildMenuItem(
-            icon: Icons.key,
-            iconColor: Color(0xFFD97706),
-            text: '비밀번호 변경',
-          ),
-          _buildMenuItem(
-            icon: Icons.public,
-            iconColor: kPrimaryPurple,
-            text: '연결된 소셜 계정',
+            onTap: navigateToSettings, // [!!] 6. 내비게이션 로직 전달
           ),
         ],
       ),
     );
   }
 
-  // --- 5. 회원 탈퇴 카드 ('DIV-166') ---
+  // --- 5. 회원 탈퇴 카드 (기존과 동일, 버튼 스타일 수정) ---
   Widget _buildDeleteAccountCard() {
     return _buildCardContainer(
       child: Column(
@@ -336,8 +336,8 @@ class _ProfileTabState extends State<ProfileTab> {
           SizedBox(height: 16),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: kPrimaryRed, // [!!] primary -> backgroundColor
-              foregroundColor: Colors.white, // [!!] onPrimary -> foregroundColor
+              backgroundColor: kPrimaryRed, // primary -> backgroundColor
+              foregroundColor: Colors.white, // onPrimary -> foregroundColor
               minimumSize: Size(double.infinity, 48),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
@@ -347,8 +347,8 @@ class _ProfileTabState extends State<ProfileTab> {
           SizedBox(height: 12),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Color(0xFFF3F4F6), // [!!] primary -> backgroundColor
-              foregroundColor: kTextSecondary, // [!!] onPrimary -> foregroundColor
+              backgroundColor: Color(0xFFF3F4F6), // primary -> backgroundColor
+              foregroundColor: kTextSecondary, // onPrimary -> foregroundColor
               minimumSize: Size(double.infinity, 48),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               elevation: 0,
@@ -363,7 +363,7 @@ class _ProfileTabState extends State<ProfileTab> {
 
   // --- 헬퍼 위젯들 ---
 
-  // 공통 카드 컨테이너
+  // 공통 카드 컨테이너 (기존과 동일)
   Widget _buildCardContainer({required Widget child}) {
     return Container(
       width: double.infinity,
@@ -376,7 +376,7 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
-  // 스탯 아이템
+  // 스탯 아이템 (기존과 동일)
   Widget _buildStatItem(String title, String value, Color color) {
     return Column(
       children: [
@@ -397,10 +397,10 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
-  // [!!] 12. 연락처 아이템 헬퍼 수정
+  // 연락처 아이템 헬퍼 (기존과 동일)
   Widget _buildContactItem({
-    required EmergencyContact contact, // 객체를 통째로 받음
-    required VoidCallback onEdit,      // 수정 콜백 함수
+    required EmergencyContact contact,
+    required VoidCallback onEdit,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -421,7 +421,6 @@ class _ProfileTabState extends State<ProfileTab> {
             ],
           ),
           Spacer(),
-          // [!!] 13. Icon -> IconButton으로 변경하고 onEdit 연결
           IconButton(
             icon: Icon(Icons.edit, color: kTextSecondary, size: 20),
             onPressed: onEdit, // 수정 콜백 실행
@@ -431,7 +430,7 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
-  // 스위치 아이템
+  // 스위치 아이템 (기존과 동일)
   Widget _buildSwitchItem(
       String title,
       bool value,
@@ -454,23 +453,29 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
-  // 계정 메뉴 아이템
+  // [!!] 7. 계정 메뉴 아이템 헬퍼 (수정됨)
   Widget _buildMenuItem({
     required IconData icon,
     required Color iconColor,
     required String text,
+    required VoidCallback onTap, // [!!] 8. onTap 파라미터 추가
   }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12.0),
-      child: Row(
-        children: [
-          Icon(icon, color: iconColor, size: 20),
-          SizedBox(width: 12),
-          Expanded(
-            child: Text(text, style: TextStyle(fontSize: 16)),
-          ),
-          Icon(Icons.arrow_forward_ios, size: 16, color: kTextSecondary),
-        ],
+    // [!!] 9. InkWell로 감싸서 탭 가능하게 만듦
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8.0), // 물결 효과 범위
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12.0),
+        child: Row(
+          children: [
+            Icon(icon, color: iconColor, size: 20),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(text, style: TextStyle(fontSize: 16)),
+            ),
+            Icon(Icons.arrow_forward_ios, size: 16, color: kTextSecondary),
+          ],
+        ),
       ),
     );
   }
