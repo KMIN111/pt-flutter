@@ -1,20 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Add this import
+import 'package:untitled/services/firestore_service.dart'; // Add this import
+import 'package:untitled/main_screen.dart'; // Import main_screen.dart for shared color constants
+import 'package:cloud_firestore/cloud_firestore.dart'; // Add this import
+import 'package:health/health.dart'; // Add this import
+import 'package:google_fonts/google_fonts.dart';
 
 import 'add_contact_sheet.dart'; // [!!] 팝업창 위젯 import
 import 'personal_info_screen.dart'; // [!!] 1. 새로 만든 페이지 import
-import 'HealthResultPage.dart';
+import 'health_result_page.dart';
 
-// RTF 파일에서 정의된 색상 상수
-const Color kPageBackground = Color(0xFFF9FAFB);
-const Color kCardBackground = Color(0xFFFFFFFF);
-const Color kPrimaryBlue = Color(0xFF2563EB);
-const Color kPrimaryGreen = Color(0xFF16A34A);
+// RTF 파일에서 정의된 색상 상수 (주석 처리 또는 main_screen.dart에서 가져옴)
+// const Color kPageBackground = Color(0xFFF9FAFB); // Use kColorBgStart
+// const Color kCardBackground = Color(0xFFFFFFFF); // Use kColorCardBg
+// const Color kColorBtnPrimary = Color(0xFF2563EB); // Use kColorBtnPrimary
+const Color kPrimaryGreen = Color(0xFF16A34A); // This color seems unique to this file for now
 const Color kPrimaryPurple = Color(0xFF9333EA);
-const Color kPrimaryRed = Color(0xFFDC2626);
+const Color kColorError = Color(0xFFDC2626); // Use kColorError (or define a specific red if different)
 const Color kDarkRed = Color(0xFFB91C1C);
-const Color kDisabledGrey = Color(0xFFE5E7EB);
-const Color kTextPrimary = Color(0xFF111827);
-const Color kTextSecondary = Color(0xFF6B7280);
+// const Color kDisabledGrey = Color(0xFFE5E7EB); // Use kColorMoodSliderInactive
+// const Color kColorTextTitle = Color(0xFF111827); // Use kColorTextTitle
+// const Color kColorTextSubtitle = Color(0xFF6B7280); // Use kColorTextSubtitle
 
 // [!!] 연락처 데이터를 관리할 클래스(모델)를 정의합니다.
 class EmergencyContact {
@@ -37,13 +43,19 @@ class EmergencyContact {
 
 // 프로필 탭
 class ProfileTab extends StatefulWidget {
-  const ProfileTab({Key? key}) : super(key: key);
+  const ProfileTab({super.key});
 
   @override
-  _ProfileTabState createState() => _ProfileTabState();
+  ProfileTabState createState() => ProfileTabState();
 }
 
-class _ProfileTabState extends State<ProfileTab> {
+class ProfileTabState extends State<ProfileTab> {
+  final FirestoreService _firestoreService = FirestoreService();
+  final String? _currentUserId = FirebaseAuth.instance.currentUser?.uid;
+  final Health _health = Health();
+  int _stepCount = 0;
+  final TextEditingController _sleepTimeController = TextEditingController();
+
   final List<EmergencyContact> _contacts = [
     EmergencyContact(
       name: '김엄마',
@@ -72,6 +84,26 @@ class _ProfileTabState extends State<ProfileTab> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _fetchStepData();
+  }
+
+  Future<void> _fetchStepData() async {
+    bool requested = await _health.requestAuthorization([HealthDataType.STEPS]);
+    if (requested) {
+      final now = DateTime.now();
+      final midnight = DateTime(now.year, now.month, now.day);
+      int? steps = await _health.getTotalStepsInInterval(midnight, now);
+      if (steps != null) {
+        setState(() {
+          _stepCount = steps;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 96),
@@ -79,11 +111,11 @@ class _ProfileTabState extends State<ProfileTab> {
         children: [
           _buildUserStatsCard(),
           const SizedBox(height: 24),
-          _buildHealthStatusCard(context), // ✅ "나의 상태" 카드 추가
+          _buildHealthStatusCard(context),
           const SizedBox(height: 24),
           _buildEmergencyContactsCard(context),
           const SizedBox(height: 24),
-          _NotificationSettingsCard(),
+          _buildNotificationSettingsCard(),
           const SizedBox(height: 24),
           _buildAccountCard(),
           const SizedBox(height: 24),
@@ -96,47 +128,70 @@ class _ProfileTabState extends State<ProfileTab> {
   // 사용자 스탯 카드
   Widget _buildUserStatsCard() {
     return _buildCardContainer(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+      child: StreamBuilder<Map<String, dynamic>?>(
+        stream: _currentUserId != null ? _firestoreService.getUserStream(_currentUserId!) : null,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+          if (!snapshot.hasData || snapshot.data == null) {
+            return const Center(child: Text('사용자 데이터를 불러올 수 없습니다.'));
+          }
+
+          final userData = snapshot.data!;
+          final userName = userData['name'] ?? '사용자님';
+          final userCreationDate = (userData['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+          final daysWithApp = DateTime.now().difference(userCreationDate).inDays;
+          final conversationCount = (userData['conversationCount'] ?? 0).toString();
+          final averageHealthScore = (userData['averageHealthScore'] ?? 0).toString();
+          final healingContentCount = (userData['healingContentCount'] ?? 0).toString();
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                radius: 32,
-                backgroundColor: Color(0xFFDBEAFE),
-                child: Icon(Icons.person, size: 30, color: kPrimaryBlue),
-              ),
-              const SizedBox(width: 16),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    '사용자님',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: kTextPrimary,
-                    ),
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 32,
+                    backgroundColor: Color(0xFFDBEAFE),
+                    child: Icon(Icons.person, size: 30, color: kColorBtnPrimary),
                   ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Personal Therapy와 함께한 지 30일',
-                    style: TextStyle(fontSize: 14, color: kTextSecondary),
+                  const SizedBox(width: 16),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        userName,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: kColorTextTitle,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Personal Therapy와 함께한 지 ${daysWithApp}일',
+                        style: TextStyle(fontSize: 14, color: kColorTextSubtitle),
+                      ),
+                    ],
                   ),
                 ],
               ),
+              Divider(height: 32, color: Colors.grey[200]),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildStatItem('대화 횟수', conversationCount, kColorBtnPrimary),
+                  _buildStatItem('평균 건강점수', averageHealthScore, kPrimaryGreen),
+                  _buildStatItem('힐링 콘텐츠', healingContentCount, kPrimaryPurple),
+                ],
+              ),
             ],
-          ),
-          Divider(height: 32, color: Colors.grey[200]),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildStatItem('대화 횟수', '127', kPrimaryBlue),
-              _buildStatItem('평균 건강점수', '85', kPrimaryGreen),
-              _buildStatItem('힐링 콘텐츠', '42', kPrimaryPurple),
-            ],
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -156,13 +211,20 @@ class _ProfileTabState extends State<ProfileTab> {
               ),
               ElevatedButton(
                 onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const HealthResultPage()),
-                  );
+                  // 현재 사용자 데이터 가져오기
+                  _firestoreService.getUserStream(_currentUserId!).first.then((userData) {
+                    if (userData != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => HealthResultPage(userData: userData),
+                        ),
+                      );
+                    }
+                  });
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: kPrimaryBlue,
+                  backgroundColor: kColorBtnPrimary,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -177,22 +239,96 @@ class _ProfileTabState extends State<ProfileTab> {
             ],
           ),
           const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: const [
-              StatusItem(icon: Icons.favorite, title: '건강 점수', value: '82'),
-              StatusItem(icon: Icons.hotel, title: '수면 시간', value: '7h 10m'),
-              StatusItem(
-                icon: Icons.directions_walk,
-                title: '걸음 수',
-                value: '6,200',
-              ),
-            ],
+          StreamBuilder<Map<String, dynamic>?>(
+            stream: _currentUserId != null ? _firestoreService.getUserStream(_currentUserId!) : null,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Center(child: Text('Error: ${snapshot.error}'));
+              }
+              if (!snapshot.hasData || snapshot.data == null) {
+                return const Center(child: Text('사용자 데이터를 불러올 수 없습니다.'));
+              }
+              final userData = snapshot.data!;
+              final healthScore = (userData['averageHealthScore'] ?? 'N/A').toString();
+              final sleepTime = userData['sleepTime'] as String? ?? 'N/A';
+
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  StatusItem(icon: Icons.favorite, title: '건강 점수', value: healthScore),
+                  GestureDetector(
+                    onTap: () => _showSleepTimeInputDialog(context),
+                    child: StatusItem(icon: Icons.hotel, title: '수면 시간', value: sleepTime),
+                  ),
+                  StatusItem(
+                    icon: Icons.directions_walk,
+                    title: '걸음 수',
+                    value: _stepCount.toString(),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
     );
   }
+
+  Future<void> _showSleepTimeInputDialog(BuildContext context) async {
+    double _currentSliderValue = 8.0;
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('수면 시간 입력'),
+          content: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('${_currentSliderValue.toStringAsFixed(1)} 시간'),
+                  Slider(
+                    value: _currentSliderValue,
+                    min: 1,
+                    max: 12,
+                    divisions: 22,
+                    label: _currentSliderValue.toStringAsFixed(1),
+                    onChanged: (double value) {
+                      setState(() {
+                        _currentSliderValue = value;
+                      });
+                    },
+                  ),
+                ],
+              );
+            },
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('취소'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('저장'),
+              onPressed: () {
+                if (_currentUserId != null) {
+                  _firestoreService.addSleepRecord(
+                      _currentUserId!, _currentSliderValue);
+                }
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
 
   // --- 2. 안심 연락망 카드 (기존과 동일) ---
   Widget _buildEmergencyContactsCard(BuildContext context) {
@@ -218,7 +354,7 @@ class _ProfileTabState extends State<ProfileTab> {
                   backgroundColor: Color(0xFFDBEAFE), // background: #DBEAFE
                   child: Icon(
                     Icons.add,
-                    color: kPrimaryBlue, // icon color: #2563EB
+                    color: kColorBtnPrimary, // icon color: #2563EB
                     size: 20,
                   ),
                 ),
@@ -228,7 +364,7 @@ class _ProfileTabState extends State<ProfileTab> {
           SizedBox(height: 8),
           Text(
             '위기 상황 감지 시 알림을 받을 연락처를 설정하세요. (최대 3개)', // 'P-46'
-            style: TextStyle(fontSize: 14, color: kTextSecondary),
+            style: TextStyle(fontSize: 14, color: kColorTextSubtitle),
           ),
           SizedBox(height: 20),
 
@@ -288,10 +424,10 @@ class _ProfileTabState extends State<ProfileTab> {
   }
 
   // --- 3. 알림 설정 카드 (기존과 동일) ---
-  Widget _NotificationSettingsCard() {
+  Widget _buildNotificationSettingsCard() {
     return StatefulBuilder(
       builder: (context, setState) {
-        Map<String, bool> Toggles = {
+        Map<String, bool> toggles = {
           '감정 기록 알림': true,
           '위기 감지 알림': true,
           '힐링 콘텐츠 알림': false,
@@ -308,18 +444,18 @@ class _ProfileTabState extends State<ProfileTab> {
               SizedBox(height: 16),
               _buildSwitchItem(
                 '감정 기록 알림',
-                Toggles['감정 기록 알림']!,
-                (value) => setState(() => Toggles['감정 기록 알림'] = value),
+                toggles['감정 기록 알림']!,
+                (value) => setState(() => toggles['감정 기록 알림'] = value),
               ),
               _buildSwitchItem(
                 '위기 감지 알림',
-                Toggles['위기 감지 알림']!,
-                (value) => setState(() => Toggles['위기 감지 알림'] = value),
+                toggles['위기 감지 알림']!,
+                (value) => setState(() => toggles['위기 감지 알림'] = value),
               ),
               _buildSwitchItem(
                 '힐링 콘텐츠 알림',
-                Toggles['힐링 콘텐츠 알림']!,
-                (value) => setState(() => Toggles['힐링 콘텐츠 알림'] = value),
+                toggles['힐링 콘텐츠 알림']!,
+                (value) => setState(() => toggles['힐링 콘텐츠 알림'] = value),
               ),
             ],
           ),
@@ -350,9 +486,18 @@ class _ProfileTabState extends State<ProfileTab> {
           // [!!] 5. onTap 핸들러를 전달하도록 _buildMenuItem 수정
           _buildMenuItem(
             icon: Icons.lock_person,
-            iconColor: kPrimaryBlue,
+            iconColor: kColorBtnPrimary,
             text: '개인정보 설정',
             onTap: navigateToSettings, // [!!] 6. 내비게이션 로직 전달
+          ),
+          SizedBox(height: 8), // Add some spacing
+          _buildMenuItem(
+            icon: Icons.logout,
+            iconColor: kColorError, // Use a red color for logout
+            text: '로그아웃',
+            onTap: () async {
+              await FirebaseAuth.instance.signOut();
+            },
           ),
         ],
       ),
@@ -367,7 +512,7 @@ class _ProfileTabState extends State<ProfileTab> {
         children: [
           Row(
             children: [
-              Icon(Icons.warning_amber, color: kPrimaryRed, size: 24),
+              Icon(Icons.warning_amber, color: kColorError, size: 24),
               SizedBox(width: 8),
               Text(
                 '회원 탈퇴',
@@ -383,7 +528,7 @@ class _ProfileTabState extends State<ProfileTab> {
           SizedBox(height: 16),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: kPrimaryRed, // primary -> backgroundColor
+              backgroundColor: kColorError, // primary -> backgroundColor
               foregroundColor: Colors.white, // onPrimary -> foregroundColor
               minimumSize: Size(double.infinity, 48),
               shape: RoundedRectangleBorder(
@@ -397,7 +542,7 @@ class _ProfileTabState extends State<ProfileTab> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Color(0xFFF3F4F6), // primary -> backgroundColor
-              foregroundColor: kTextSecondary, // onPrimary -> foregroundColor
+              foregroundColor: kColorTextSubtitle, // onPrimary -> foregroundColor
               minimumSize: Size(double.infinity, 48),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -420,7 +565,7 @@ class _ProfileTabState extends State<ProfileTab> {
       width: double.infinity,
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: kCardBackground,
+        color: kColorCardBg,
         borderRadius: BorderRadius.circular(16),
       ),
       child: child,
@@ -431,7 +576,7 @@ class _ProfileTabState extends State<ProfileTab> {
   Widget _buildStatItem(String title, String value, Color color) {
     return Column(
       children: [
-        Text(title, style: TextStyle(fontSize: 12, color: kTextSecondary)),
+        Text(title, style: TextStyle(fontSize: 12, color: kColorTextSubtitle)),
         SizedBox(height: 4),
         Text(
           value,
@@ -466,13 +611,13 @@ class _ProfileTabState extends State<ProfileTab> {
               Text(contact.name, style: TextStyle(fontWeight: FontWeight.w600)),
               Text(
                 '${contact.phone} ${contact.tag}',
-                style: TextStyle(color: kTextSecondary),
+                style: TextStyle(color: kColorTextSubtitle),
               ),
             ],
           ),
           Spacer(),
           IconButton(
-            icon: Icon(Icons.edit, color: kTextSecondary, size: 20),
+            icon: Icon(Icons.edit, color: kColorTextSubtitle, size: 20),
             onPressed: onEdit, // 수정 콜백 실행
           ),
         ],
@@ -491,8 +636,8 @@ class _ProfileTabState extends State<ProfileTab> {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: kPrimaryBlue,
-            inactiveTrackColor: kDisabledGrey,
+            activeThumbColor: kColorBtnPrimary,
+            inactiveTrackColor: kColorMoodSliderInactive,
           ),
         ],
       ),
@@ -517,7 +662,7 @@ class _ProfileTabState extends State<ProfileTab> {
             Icon(icon, color: iconColor, size: 20),
             SizedBox(width: 12),
             Expanded(child: Text(text, style: TextStyle(fontSize: 16))),
-            Icon(Icons.arrow_forward_ios, size: 16, color: kTextSecondary),
+            Icon(Icons.arrow_forward_ios, size: 16, color: kColorTextSubtitle),
           ],
         ),
       ),
@@ -531,22 +676,22 @@ class StatusItem extends StatelessWidget {
   final String value;
 
   const StatusItem({
-    Key? key,
+    super.key,
     required this.icon,
     required this.title,
     required this.value,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Icon(icon, color: kPrimaryBlue),
+        Icon(icon, color: kColorBtnPrimary),
         const SizedBox(height: 6),
         Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
         Text(
           title,
-          style: const TextStyle(fontSize: 12, color: kTextSecondary),
+          style: const TextStyle(fontSize: 12, color: kColorTextSubtitle),
         ),
       ],
     );

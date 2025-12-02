@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'dart:convert'; // [!!] SurveyScreen에서 JSON 사용을 위해 추가 (이전 코드 기반)
+import 'package:firebase_auth/firebase_auth.dart'; // Add this import
+import 'package:untitled/services/firestore_service.dart'; // Add this import
+
 
 // main.dart에 있는 색상 상수들을 가져오기
 const Color kColorBgStart = Color(0xFFEFF6FF);
@@ -17,7 +19,7 @@ const Color kWarningCardBg = Color(0xFFF3F4F6);
 
 /// 정신건강 진단 페이지 (RTF 파일 기준)
 class DiagnosisScreen extends StatelessWidget {
-  const DiagnosisScreen({Key? key}) : super(key: key);
+  const DiagnosisScreen({super.key});
 
   //  1-1. 각 검사별 질문 리스트 (10개 항목) - 하드코딩한 부분 추후 DB 연동 예정
   // 우울증 자가진단
@@ -249,7 +251,7 @@ class DiagnosisScreen extends StatelessWidget {
                   return Icon(
                     Icons.psychology,
                     size: 24,
-                    color: kColorTextSubtitle.withOpacity(0.6),
+                    color: kColorTextSubtitle.withOpacity(0.6), // ignore: deprecated_member_use
                   );
                 },
               ),
@@ -370,10 +372,10 @@ class SurveyScreen extends StatefulWidget {
   final List<String> questions;
 
   const SurveyScreen({
-    Key? key,
+    super.key,
     required this.title,
     required this.questions,
-  }) : super(key: key);
+  });
 
   @override
   State<SurveyScreen> createState() => _SurveyScreenState();
@@ -388,6 +390,10 @@ class _SurveyScreenState extends State<SurveyScreen> {
     '그렇다',           // 4점
     '매우 그렇다',      // 5점
   ];
+
+  final FirestoreService _firestoreService = FirestoreService();
+  final String? _currentUserId = FirebaseAuth.instance.currentUser?.uid;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -565,7 +571,7 @@ class _SurveyScreenState extends State<SurveyScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(12.0),
       decoration: BoxDecoration(
-        color: kWarningCardBg.withOpacity(0.7), // 기존 주의사항 카드 배경
+        color: kWarningCardBg.withOpacity(0.7), // ignore: deprecated_member_use // 기존 주의사항 카드 배경
         borderRadius: BorderRadius.circular(8.0),
       ),
       child: Row(
@@ -593,8 +599,7 @@ class _SurveyScreenState extends State<SurveyScreen> {
   }
 
   // 5. _handleSubmit 함수
-  @override
-  void _handleSubmit() {
+  void _handleSubmit() async {
     if (_answers.any((answer) => answer == null)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -605,83 +610,98 @@ class _SurveyScreenState extends State<SurveyScreen> {
       return;
     }
 
-    int totalScore = _answers.fold(0, (sum, score) => sum + (score ?? 0));
+    setState(() {
+      _isLoading = true;
+    });
 
-    // 점수 평가 로직 호출
-    TestResult result = _evaluateTest(widget.title, totalScore);
+    try {
+      int totalScore = _answers.fold(0, (sum, score) => sum + (score ?? 0));
 
-    // --- (추후 JSON 저장 로직 추가) ---
-    // Map<String, dynamic> resultMap = { ... };
-    // ...
-    // print(jsonResult);
-    // ----------------------------------------
+      // 점수 평가 로직 호출
+      TestResult result = _evaluateTest(widget.title, totalScore);
 
-    // 수정된 다이얼로그 표시
-    showDialog(
-      context: context,
-      barrierDismissible: false, // 바깥 영역 터치로 닫기 방지
-      builder: (context) => AlertDialog(
-        title: Text(widget.title),
-        content: SingleChildScrollView( // 내용이 길어질 수 있으므로 스크롤
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 결과 타이틀
-              Text(
-                result.title,
-                style: GoogleFonts.roboto(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: result.color, // 파일 상단에 정의된 색상
+      if (_currentUserId != null) {
+        await _firestoreService.updateMentalHealthScore(
+            _currentUserId!, result.score);
+        // Optionally show a snackbar for successful save, but dialog will show result
+      } else {
+        // Handle case where user is not logged in
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('로그인이 필요합니다. 점수는 저장되지 않습니다.')),
+        );
+      }
+
+      // 수정된 다이얼로그 표시
+      showDialog(
+        context: context,
+        barrierDismissible: false, // 바깥 영역 터치로 닫기 방지
+        builder: (context) => AlertDialog(
+          title: Text(widget.title),
+          content: SingleChildScrollView( // 내용이 길어질 수 있으므로 스크롤
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 결과 타이틀
+                Text(
+                  result.title,
+                  style: GoogleFonts.roboto(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: result.color, // 파일 상단에 정의된 색상
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              // 총점
-              Text(
-                '총점: ${result.score}점',
-                style: GoogleFonts.roboto(
-                  fontSize: 14,
-                  color: kColorTextSubtitle, // 파일 상단에 정의된 색상
+                const SizedBox(height: 8),
+                // 총점
+                Text(
+                  '총점: ${result.score}점',
+                  style: GoogleFonts.roboto(
+                    fontSize: 14,
+                    color: kColorTextSubtitle, // 파일 상단에 정의된 색상
+                  ),
                 ),
-              ),
-              const Divider(height: 24),
-              // 결과 설명
-              Text(
-                result.description,
-                style: GoogleFonts.roboto(
-                  fontSize: 14,
-                  color: kColorTextLabel, // 파일 상단에 정의된 색상
-                  height: 1.5,
+                const Divider(height: 24),
+                // 결과 설명
+                Text(
+                  result.description,
+                  style: GoogleFonts.roboto(
+                    fontSize: 14,
+                    color: kColorTextLabel, // 파일 상단에 정의된 색상
+                    height: 1.5,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              // 조언
-              Text(
-                result.advice,
-                style: GoogleFonts.roboto(
-                  fontSize: 14,
-                  color: kColorTextLabel, // 파일 상단에 정의된 색상
-                  height: 1.5,
+                const SizedBox(height: 12),
+                // 조언
+                Text(
+                  result.advice,
+                  style: GoogleFonts.roboto(
+                    fontSize: 14,
+                    color: kColorTextLabel, // 파일 상단에 정의된 색상
+                    height: 1.5,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 20),
-              // 하단 주의사항
-              _buildDialogNoticeCard(), // 위에서 만든 함수 호출
-            ],
+                const SizedBox(height: 20),
+                // 하단 주의사항
+                _buildDialogNoticeCard(), // 위에서 만든 함수 호출
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context); // 다이얼로그 닫기
+                Navigator.pop(context); // 검사 페이지 닫기 (메인으로 이동)
+              },
+              child: Text('확인'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context); // 다이얼로그 닫기
-              Navigator.pop(context); // 검사 페이지 닫기 (메인으로 이동)
-            },
-            child: Text('확인'),
-          ),
-        ],
-      ),
-    );
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -734,8 +754,17 @@ class _SurveyScreenState extends State<SurveyScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onPressed: _handleSubmit, // [!!] 수정된 handleSubmit 함수가 호출됨
-              child: Text(
+              onPressed: _isLoading ? null : _handleSubmit, // [!!] 수정된 handleSubmit 함수가 호출됨
+              child: _isLoading
+                  ? const SizedBox(
+                height: 24.0,
+                width: 24.0,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2.0,
+                ),
+              )
+                  : Text(
                 '결과 보기',
                 style: GoogleFonts.roboto(
                     fontSize: 16, fontWeight: FontWeight.bold),
@@ -759,13 +788,13 @@ class SurveyQuestionItem extends StatelessWidget {
   final ValueChanged<int?> onChanged;
 
   const SurveyQuestionItem({
-    Key? key,
+    super.key,
     required this.questionNumber,
     required this.questionText,
     required this.options,
     required this.selectedValue,
     required this.onChanged,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -788,26 +817,28 @@ class SurveyQuestionItem extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12.0),
-            Column(
-              children: List.generate(options.length, (index) {
-                final value = index + 1;
-                final optionText = options[index];
+            RadioGroup<int>(
+              groupValue: selectedValue,
+              onChanged: onChanged,
+              child: Column(
+                children: List.generate(options.length, (index) {
+                  final value = index + 1;
+                  final optionText = options[index];
 
-                return RadioListTile<int>(
-                  title: Text(
-                    optionText,
-                    style: GoogleFonts.roboto(
-                      fontSize: 14,
-                      color: kColorTextLabel,
+                  return RadioListTile<int>(
+                    title: Text(
+                      optionText,
+                      style: GoogleFonts.roboto(
+                        fontSize: 14,
+                        color: kColorTextLabel,
+                      ),
                     ),
-                  ),
-                  value: value,
-                  groupValue: selectedValue,
-                  onChanged: onChanged,
-                  activeColor: kColorBtnPrimary,
-                  contentPadding: EdgeInsets.zero,
-                );
-              }),
+                    value: value,
+                    activeColor: kColorBtnPrimary,
+                    contentPadding: EdgeInsets.zero,
+                  );
+                }),
+              ),
             ),
           ],
         ),

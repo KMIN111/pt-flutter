@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:untitled/services/firestore_service.dart';
+import 'package:untitled/services/firestore_service.dart';
 
 // --- 색상 정의 (에러 색상 kColorError 추가) ---
 const Color kColorBgStart = Color(0xFFEFF6FF);
@@ -17,13 +20,13 @@ const Color kColorError = Color(0xFFEF4444); // 👈 RTF 기반 에러 색상
 // ---
 
 class SignUpScreen extends StatefulWidget {
-  const SignUpScreen({Key? key}) : super(key: key);
+  const SignUpScreen({super.key});
 
   @override
-  _SignUpScreenState createState() => _SignUpScreenState();
+  SignUpScreenState createState() => SignUpScreenState();
 }
 
-class _SignUpScreenState extends State<SignUpScreen> {
+class SignUpScreenState extends State<SignUpScreen> {
   // 폼 필드 값을 제어하기 위한 컨트롤러
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -34,6 +37,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   bool _passwordVisible = false;
   bool _confirmPasswordVisible = false;
   bool _agreeToTerms = false;
+  bool _isLoading = false;
 
   // 에러 메시지를 저장할 상태 변수
   String? _nameError;
@@ -53,14 +57,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   // --- 1. 유효성 검사 함수 ---
-  void _validateAndSignUp() {
-    // 0. 모든 에러 메시지를 초기화
+  Future<void> _validateAndSignUp() async {
+    // 0. 모든 에러 메시지를 초기화 및 로딩 시작
     setState(() {
       _nameError = null;
       _emailError = null;
       _passwordError = null;
       _confirmPasswordError = null;
       _termsError = null;
+      _isLoading = true; // Start loading
     });
 
     bool isValid = true;
@@ -83,7 +88,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
     // 3. 비밀번호 검사 (DIV-42) - 8자 이상
     if (password.length < 8) {
-      setState(() => _passwordError = "8자 이상, 영문/숫자/특수문자 포함");
+      setState(() => _passwordError = "비밀번호는 8자 이상이어야 합니다.");
+      isValid = false;
+    }
+    // [보안 강화] 영문/숫자/특수문자 포함 여부 검사 (정규식 사용)
+    else if (!RegExp(r'^(?=.*[A-Za-z])(?=.*\d)(?=.*[!@#$%^&*()_+])[A-Za-z\d!@#$%^&*()_+]{8,}$').hasMatch(password)) {
+      setState(() => _passwordError = "비밀번호는 영문, 숫자, 특수문자를 포함해야 합니다.");
       isValid = false;
     }
 
@@ -99,13 +109,48 @@ class _SignUpScreenState extends State<SignUpScreen> {
       isValid = false;
     }
 
-    // 6. 모든 검사 통과
+    // 모든 검사 통과 시 Firebase 회원가입 시도
     if (isValid) {
-      // TODO: 파이어베이스 회원가입 기능 구현
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('회원가입 요청 (기능 구현 전)')),
-      );
+      try {
+        UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+
+        // 회원가입 성공 후 추가적인 사용자 정보 저장 (예: 이름)
+        if (userCredential.user != null) {
+          await FirestoreService().addUser(
+            userCredential.user!.uid,
+            name, // User's name from the input field
+            email,
+          );
+        }
+
+        print("Firebase 회원가입 성공: ${userCredential.user?.uid}");
+
+        // 회원가입 성공 시 이전 화면 (로그인 화면)으로 돌아가기
+        if (mounted) {
+          Navigator.pop(context);
+        }
+
+      } on FirebaseAuthException catch (e) {
+        if (e.code == 'weak-password') {
+          setState(() => _passwordError = '비밀번호가 너무 취약합니다.');
+        } else if (e.code == 'email-already-in-use') {
+          setState(() => _emailError = '이미 사용 중인 이메일입니다.');
+        } else if (e.code == 'invalid-email') {
+          setState(() => _emailError = '유효하지 않은 이메일 형식입니다.');
+        } else {
+          setState(() => _emailError = '회원가입에 실패했습니다: ${e.message}');
+        }
+      } catch (e) {
+        setState(() => _emailError = '알 수 없는 오류가 발생했습니다: $e');
+      }
     }
+
+    setState(() {
+      _isLoading = false; // Stop loading
+    });
   }
 
   @override
@@ -165,7 +210,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     ),
                   ),
                   TextButton(
-                    onPressed: () => Navigator.pop(context), // 로그인 화면으로
+                    onPressed: _isLoading ? null : () => Navigator.pop(context), // 👈 로딩 중 비활성화
                     style: TextButton.styleFrom(
                       padding: EdgeInsets.zero,
                       minimumSize: Size.zero,
@@ -296,7 +341,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
             // 회원가입 버튼
             ElevatedButton(
-              onPressed: _validateAndSignUp, // 👈 유효성 검사 함수 호출
+              onPressed: _isLoading ? null : _validateAndSignUp, // 👈 로딩 중 비활성화 및 함수 연결
               style: ElevatedButton.styleFrom(
                 backgroundColor: kColorBtnPrimary,
                 shape: RoundedRectangleBorder(
@@ -304,7 +349,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
                 minimumSize: const Size(double.infinity, 45),
               ),
-              child: Text(
+              child: _isLoading
+                  ? const SizedBox(
+                height: 24.0,
+                width: 24.0,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2.0,
+                ),
+              )
+                  : Text(
                 '회원가입',
                 style: GoogleFonts.roboto(
                   color: Colors.white,
@@ -397,13 +451,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  // Google 로그인 버튼 위젯 (로그인과 동일)
-  Widget _buildGoogleLoginButton() {
-    return OutlinedButton.icon(
-      onPressed: () {
-        // TODO: 파이어베이스 구글 로그인 기능 구현
-      },
-      icon: Image.asset(
+            // Google 로그인 버튼 위젯 (로그인과 동일)
+    Widget _buildGoogleLoginButton() {
+      return OutlinedButton.icon(
+        onPressed: _isLoading ? null : () { // 👈 로딩 중 비활성화
+          // TODO: 파이어베이스 구글 로그인 기능 구현
+        },      icon: Image.asset(
         'assets/images/google_logo.png',
         height: 24.0,
       ),

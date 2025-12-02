@@ -10,7 +10,7 @@ const Color kColorBtnPrimary = Color(0xFF2563EB);
 const Color kColorCardBg = Colors.white;
 
 class HealingScreen extends StatefulWidget {
-  const HealingScreen({Key? key}) : super(key: key);
+  const HealingScreen({super.key});
 
   @override
   State<HealingScreen> createState() => _HealingScreenState();
@@ -22,6 +22,7 @@ class _HealingScreenState extends State<HealingScreen> {
 
   bool _loading = true;
   List<Map<String, String>> _videos = [];
+  String? _error;
 
   @override
   void initState() {
@@ -30,26 +31,54 @@ class _HealingScreenState extends State<HealingScreen> {
   }
 
   Future<void> _loadVideos() async {
-    setState(() => _loading = true);
-    List<Map<String, String>> fetched = [];
-    switch (_selectedToggleIndex) {
-      case 0:
-        fetched = await _youtube.fetchByKeyword('힐링 명상 음악');
-        break;
-      case 1:
-        fetched = await _youtube.fetchByKeyword('명상 meditation mindfulness');
-        break;
-      case 2:
-        fetched = await _youtube.fetchByKeyword('수면 음악 sleep relaxation');
-        break;
-      case 3:
-        fetched = await _youtube.fetchByKeyword('ASMR 자연소리 힐링');
-        break;
-    }
     setState(() {
-      _videos = fetched;
-      _loading = false;
+      _loading = true;
+      _error = null;
     });
+    try {
+      List<Map<String, String>> fetched = [];
+      switch (_selectedToggleIndex) {
+        case 0:
+          fetched = await _youtube.fetchByKeyword('힐링 명상 음악');
+          break;
+        case 1:
+          fetched = await _youtube.fetchByKeyword('명상 meditation mindfulness');
+          break;
+        case 2:
+          fetched = await _youtube.fetchByKeyword('수면 음악 sleep relaxation');
+          break;
+        case 3:
+          fetched = await _youtube.fetchByKeyword('ASMR 자연소리 힐링');
+          break;
+      }
+      setState(() {
+        _videos = fetched;
+        _loading = false;
+      });
+    } catch (e) {
+      print('Error loading videos: $e'); // 디버그 로그
+      if (e.toString().contains('YOUTUBE_API_KEY is not set')) {
+        setState(() {
+          _error = 'YouTube API 키가 설정되지 않았습니다. .env 파일을 확인해주세요.';
+          _loading = false;
+        });
+      } else if (e.toString().contains('403')) {
+        setState(() {
+          _error = 'YouTube API 할당량이 초과되었거나 API 키가 유효하지 않습니다.\n잠시 후 다시 시도해주세요.';
+          _loading = false;
+        });
+      } else if (e.toString().contains('400')) {
+        setState(() {
+          _error = 'YouTube API 요청이 잘못되었습니다.\n개발자에게 문의해주세요.';
+          _loading = false;
+        });
+      } else {
+        setState(() {
+          _error = '데이터를 불러오는 데 실패했습니다.\n인터넷 연결을 확인하거나 잠시 후 다시 시도해주세요.\n\n오류: ${e.toString()}';
+          _loading = false;
+        });
+      }
+    }
   }
 
   void _onToggle(int index) {
@@ -79,6 +108,11 @@ class _HealingScreenState extends State<HealingScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
+          : _error != null
+          ? Center(child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(_error!, textAlign: TextAlign.center),
+          ))
           : SingleChildScrollView(
         padding:
         const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),

@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:untitled/services/firestore_service.dart';
 
 class HealthResultPage extends StatelessWidget {
-  const HealthResultPage({Key? key}) : super(key: key);
+  final Map<String, dynamic> userData;
+  const HealthResultPage({super.key, required this.userData});
 
   @override
   Widget build(BuildContext context) {
-    // 이 데이터는 추후 HealthConnectSection에서 전달받도록 변경 가능
     final data = {
-      '평균 심박수': '75 bpm',
-      '총 걸음 수': '6,200 걸음',
-      '총 수면 시간': '7시간 10분',
-      '건강 점수': '82점',
+      '평균 심박수': '75 bpm', // This is still hardcoded
+      '총 걸음 수': '6,200 걸음', // This is still hardcoded
+      '총 수면 시간': userData['sleepTime'] ?? 'N/A',
+      '건강 점수': '${userData['averageHealthScore'] ?? 'N/A'}점',
     };
 
     return Scaffold(

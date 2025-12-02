@@ -1,25 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:untitled/main_screen.dart'; // Import main_screen.dart for shared color constants
 
 // profile_tab.dart 또는 main.dart에 정의된 색상 상수들을 가져옵니다.
 // (일관성을 위해 profile_tab.dart의 상수들을 그대로 사용합니다)
-const Color kPageBackground = Color(0xFFF9FAFB);
-const Color kCardBackground = Color(0xFFFFFFFF);
-const Color kPrimaryBlue = Color(0xFF2563EB);
-const Color kTextPrimary = Color(0xFF111827);
-const Color kTextSecondary = Color(0xFF6B7280);
-const Color kTextHint = Color(0xFF9CA3AF);
-const Color kEditTextBg = Color(0xFFF3F4F6);
-const Color kColorBtnPrimary = Color(0xFF2563EB);
+// const Color kPageBackground = Color(0xFFF9FAFB);
+// const Color kCardBackground = Color(0xFFFFFFFF);
+// const Color kColorBtnPrimary = Color(0xFF2563EB);
+// const Color kColorTextTitle = Color(0xFF111827);
+// const Color kColorTextSubtitle = Color(0xFF6B7280);
+const Color kTextHint = Color(0xFF9CA3AF); // This seems unique to this file
+// const Color kColorEditTextBg = Color(0xFFF3F4F6);
+// const Color kColorBtnPrimary = Color(0xFF2563EB);
 
 /// 개인정보 수정 페이지 (개인정보 설정.rtf 기반)
 class PersonalInfoScreen extends StatefulWidget {
-  const PersonalInfoScreen({Key? key}) : super(key: key);
+  const PersonalInfoScreen({super.key});
 
   @override
-  _PersonalInfoScreenState createState() => _PersonalInfoScreenState();
+  PersonalInfoScreenState createState() => PersonalInfoScreenState();
 }
 
-class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
+class PersonalInfoScreenState extends State<PersonalInfoScreen> {
 
   // (예시) 입력 필드를 위한 컨트롤러
   late TextEditingController _nameController;
@@ -63,7 +64,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kPageBackground,
+      backgroundColor: kColorBgStart,
       // RTF 'DIV-3' (padding: 80px 24px 96px)를 위해 앱바를 투명하게 띄움
       extendBodyBehindAppBar: true,
       appBar: AppBar(
@@ -73,7 +74,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
         leading: IconButton(
           icon: Icon(
             Icons.arrow_back,
-            color: kTextPrimary,
+            color: kColorTextTitle,
             size: 20, // 'Icon-144'
           ),
           onPressed: () => Navigator.pop(context),
@@ -81,7 +82,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
         title: Text(
           '개인정보 수정', // 'SPAN-151'
           style: TextStyle(
-            color: kTextPrimary,
+            color: kColorTextTitle,
             fontSize: 18,
             fontWeight: FontWeight.w600, // font-weight: 600
           ),
@@ -155,7 +156,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
         CircleAvatar(
           radius: 64, // 128px / 2
           backgroundColor: Color(0xFFDBEAFE),
-          child: Icon(Icons.person, size: 80, color: kPrimaryBlue),
+          child: Icon(Icons.person, size: 80, color: kColorBtnPrimary),
           // TODO: 실제 이미지 적용
         ),
         SizedBox(height: 16),
@@ -164,7 +165,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,
-            color: kPrimaryBlue,
+            color: kColorBtnPrimary,
           ),
         ),
       ],
@@ -193,7 +194,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                   keyboardType: keyboardType,
                   decoration: InputDecoration(
                     filled: true,
-                    fillColor: kEditTextBg,
+                    fillColor: kColorEditTextBg,
                     border: OutlineInputBorder(borderSide: BorderSide.none, borderRadius: BorderRadius.circular(8)),
                     contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
@@ -202,13 +203,13 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
               SizedBox(width: 12),
               ElevatedButton( // 'BUTTON'
                 onPressed: onPressed,
-                child: Text(buttonText),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: kColorBtnPrimary,
                   foregroundColor: Colors.white,
                   padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
+                child: Text(buttonText),
               ),
             ],
           ),
@@ -229,12 +230,12 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
             width: double.infinity,
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: kEditTextBg, // background: #F3F4F6
+              color: kColorEditTextBg, // background: #F3F4F6
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
               value,
-              style: TextStyle(fontSize: 16, color: kTextSecondary), // 읽기 전용 텍스트
+              style: TextStyle(fontSize: 16, color: kColorTextSubtitle), // 읽기 전용 텍스트
             ),
           ),
         ],
@@ -262,7 +263,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
           children: [
             Text('비밀번호', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)), // 'H3-99'
             SizedBox(height: 4),
-            Text('••••••••', style: TextStyle(fontSize: 16, color: kTextSecondary)), // 'P-105'
+            Text('••••••••', style: TextStyle(fontSize: 16, color: kColorTextSubtitle)), // 'P-105'
           ],
         ),
         OutlinedButton( // 'BUTTON-108'
@@ -272,12 +273,12 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
               _isChangingPassword = true;
             });
           },
-          child: Text('변경'),
           style: OutlinedButton.styleFrom(
-            foregroundColor: kPrimaryBlue,
-            side: BorderSide(color: kEditTextBg),
+            foregroundColor: kColorBtnPrimary,
+            side: BorderSide(color: kColorEditTextBg),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
+          child: Text('변경'),
         ),
       ],
     );
@@ -319,13 +320,13 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                   _newPasswordController.clear();
                   _confirmPasswordController.clear();
                 },
-                child: Text('취소'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: kTextSecondary,
-                  side: BorderSide(color: kEditTextBg),
+                  foregroundColor: kColorTextSubtitle,
+                  side: BorderSide(color: kColorEditTextBg),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   padding: EdgeInsets.symmetric(vertical: 12),
                 ),
+                child: Text('취소'),
               ),
             ),
             SizedBox(width: 12),
@@ -345,13 +346,13 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                   _newPasswordController.clear();
                   _confirmPasswordController.clear();
                 },
-                child: Text('저장'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: kColorBtnPrimary,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   padding: EdgeInsets.symmetric(vertical: 12),
                 ),
+                child: Text('저장'),
               ),
             ),
           ],
@@ -372,7 +373,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
         hintText: hintText,
         hintStyle: TextStyle(fontSize: 16, color: kTextHint),
         filled: true,
-        fillColor: kEditTextBg,
+        fillColor: kColorEditTextBg,
         border: OutlineInputBorder(
             borderSide: BorderSide.none,
             borderRadius: BorderRadius.circular(8)
@@ -422,14 +423,14 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
         Icon(icon, color: iconColor, size: 24),
         SizedBox(width: 12),
         Expanded(
-          child: Text(text, style: TextStyle(fontSize: 16, color: kTextPrimary)),
+          child: Text(text, style: TextStyle(fontSize: 16, color: kColorTextTitle)),
         ),
         Text(
           isConnected ? '연결됨' : '연결하기', // 'P-126', 'P-134'
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,
-            color: isConnected ? kTextSecondary : kPrimaryBlue,
+            color: isConnected ? kColorTextSubtitle : kColorBtnPrimary,
           ),
         ),
       ],
@@ -442,7 +443,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
       width: double.infinity,
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: kCardBackground,
+        color: kColorCardBg,
         borderRadius: BorderRadius.circular(16),
       ),
       child: child,
