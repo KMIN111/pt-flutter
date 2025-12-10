@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:io'; // Platform detection
-import 'package:health/health.dart' as health;
 import 'package:untitled/main_screen.dart'; // Import main_screen.dart to use its color constants
 import 'package:untitled/services/health_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -29,7 +28,6 @@ class _WearableDeviceScreenState extends State<WearableDeviceScreen> {
   Timer? _dataUpdateTimer;
   bool _isLoading = true;
   bool _isConnected = false;
-  bool _isConnecting = false;
 
   // 실시간 모니터링 데이터
   int _steps = 0;
@@ -69,12 +67,24 @@ class _WearableDeviceScreenState extends State<WearableDeviceScreen> {
   Future<void> _initializeHealthData() async {
     setState(() {
       _isLoading = true;
-      _isConnecting = true;
     });
 
     try {
+      // Android: Health Connect 상태 확인
+      if (Platform.isAndroid) {
+        final status = await _healthService.checkHealthConnectStatus();
+        print('Health Connect SDK 상태: $status');
+
+        if (status.toString().contains('unavailable')) {
+          _showErrorSnackBar('Health Connect가 설치되지 않았습니다.\nGoogle Play에서 Health Connect를 설치하세요.');
+          return;
+        }
+      }
+
       // 권한 요청
+      print('권한 요청 시작...');
       bool authorized = await _healthService.requestAuthorization();
+      print('권한 요청 결과: $authorized');
 
       if (authorized) {
         await _refreshHealthData();
@@ -89,7 +99,7 @@ class _WearableDeviceScreenState extends State<WearableDeviceScreen> {
             ];
           } else if (Platform.isAndroid) {
             _connectedDevices = [
-              {'name': 'Galaxy Watch', 'battery': null, 'status': 'Health Connect 연동'},
+              {'name': 'Health Connect', 'battery': null, 'status': 'Health Connect 연동'},
             ];
           } else {
             _connectedDevices = [
@@ -98,14 +108,16 @@ class _WearableDeviceScreenState extends State<WearableDeviceScreen> {
           }
         });
       } else {
-        _showErrorSnackBar('Health 데이터 접근 권한이 필요합니다.');
+        final errorMsg = Platform.isAndroid
+            ? 'Health Connect 권한이 필요합니다.\nHealth Connect 앱에서 이 앱의 권한을 확인하세요.'
+            : 'Apple Health 데이터 접근 권한이 필요합니다.';
+        _showErrorSnackBar(errorMsg);
       }
     } catch (e) {
       _showErrorSnackBar('데이터를 가져오는 중 오류가 발생했습니다: $e');
     } finally {
       setState(() {
         _isLoading = false;
-        _isConnecting = false;
       });
     }
   }
@@ -127,8 +139,9 @@ class _WearableDeviceScreenState extends State<WearableDeviceScreen> {
       _analyzeUserState();
 
       // Firestore에 저장
-      if (_currentUserId != null) {
-        await _healthService.saveHealthDataToFirestore(_currentUserId!, {
+      final userId = _currentUserId;
+      if (userId != null) {
+        await _healthService.saveHealthDataToFirestore(userId, {
           'steps': _steps,
           'activeCalories': _activeCalories,
           'heartRate': _currentHR,
@@ -188,6 +201,32 @@ class _WearableDeviceScreenState extends State<WearableDeviceScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message), backgroundColor: kColorError),
+      );
+    }
+  }
+
+  /// Health Connect 앱 설명 다이얼로그 표시 (Android만)
+  Future<void> _showHealthConnectGuide() async {
+    if (Platform.isAndroid) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Health Connect 권한 설정'),
+          content: const Text(
+            '1. 설정 앱을 엽니다\n'
+            '2. "앱" 또는 "애플리케이션"을 선택합니다\n'
+            '3. "Health Connect"를 찾아 선택합니다\n'
+            '4. "앱 권한" 또는 "권한"을 선택합니다\n'
+            '5. "Personal Therapy" 앱을 찾아 필요한 권한을 허용합니다\n\n'
+            '또는 아래 "권한 재요청" 버튼을 눌러 권한을 다시 요청하세요.'
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('확인'),
+            ),
+          ],
+        ),
       );
     }
   }
@@ -382,13 +421,53 @@ class _WearableDeviceScreenState extends State<WearableDeviceScreen> {
               child: Column(
                 children: [
                   const Icon(Icons.watch_off_outlined, size: 48, color: kColorTextHint),
+                  const SizedBox(height: 12),
+                  Text(
+                    Platform.isIOS
+                        ? 'Apple Health 권한이 필요합니다.'
+                        : 'Health Connect 권한이 필요합니다.',
+                    style: const TextStyle(
+                      color: kColorTextTitle,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    )
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     Platform.isIOS
-                        ? 'Apple Health 권한을 확인하세요.'
-                        : 'Health Connect 권한을 확인하세요.',
-                    style: const TextStyle(color: kColorTextSubtitle)
+                        ? '설정 > 개인정보 보호 > 건강에서 권한을 허용하세요.'
+                        : '앱 설정에서 Health Connect 권한을 허용하세요.',
+                    style: const TextStyle(color: kColorTextSubtitle),
+                    textAlign: TextAlign.center,
                   ),
+                  const SizedBox(height: 16),
+                  if (Platform.isAndroid)
+                    Column(
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: _initializeHealthData,
+                          icon: const Icon(Icons.refresh, size: 18),
+                          label: const Text('권한 재요청'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: kColorBtnPrimary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextButton.icon(
+                          onPressed: _showHealthConnectGuide,
+                          icon: const Icon(Icons.help_outline, size: 18),
+                          label: const Text('권한 설정 방법 보기'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: kColorBtnPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
                 ],
               ),
             ),
@@ -493,6 +572,9 @@ class _WearableDeviceScreenState extends State<WearableDeviceScreen> {
 
   /// '오늘의 스트레스 변화' 카드
   Widget _buildStressLogCard() {
+    // 실제 데이터로부터 통계 계산
+    final stats = _calculateStressStatistics();
+
     return _buildSettingCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -518,15 +600,51 @@ class _WearableDeviceScreenState extends State<WearableDeviceScreen> {
             ).toList(),
           ),
           Divider(height: 32),
-          // 스트레스 요약
+          // 스트레스 요약 (실제 계산된 값 사용)
           _buildStressSummaryRow(
-            avgStress: 43, // (예시)
-            maxStress: 70, // (예시)
-            avgHr: 76,     // (예시)
+            avgStress: stats['avgStress']!,
+            maxStress: stats['maxStress']!,
+            avgHr: stats['avgHr']!,
           ),
         ],
       ),
     );
+  }
+
+  /// 스트레스 로그로부터 통계 계산
+  Map<String, int> _calculateStressStatistics() {
+    if (_stressLog.isEmpty) {
+      return {
+        'avgStress': 0,
+        'maxStress': 0,
+        'avgHr': 0,
+      };
+    }
+
+    int totalStress = 0;
+    int maxStress = 0;
+    int totalHr = 0;
+
+    for (var log in _stressLog) {
+      final stress = log['stress'] as int;
+      final hr = log['hr'] as int;
+
+      totalStress += stress;
+      totalHr += hr;
+
+      if (stress > maxStress) {
+        maxStress = stress;
+      }
+    }
+
+    final avgStress = (totalStress / _stressLog.length).round();
+    final avgHr = (totalHr / _stressLog.length).round();
+
+    return {
+      'avgStress': avgStress,
+      'maxStress': maxStress,
+      'avgHr': avgHr,
+    };
   }
 
   /// 스트레스 로그 Row 헬퍼
