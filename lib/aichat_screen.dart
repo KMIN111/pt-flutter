@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 // ⚠️ 실제 앱에서는 이렇게 하드코딩하지 말고
 // --dart-define=GEMINI_API_KEY=... 로 넘기거나, 안전한 저장소에 넣는 게 좋아.
 // 여기서는 구조 설명을 위해 상수로
-const String geminiApiKey = 'AIzaSyD2s8egs5QbN15S9NR8Dh2iTpFIvN0LCiA';
+const String geminiApiKey = 'AIzaSyAWgJ85UBwyjxI-euQ8z3f1r9r8-pNrJoU';
 
 // 네가 Java에서 쓰던 것과 같은 엔드포인트 구조
 const String geminiEndpoint =
@@ -157,7 +157,7 @@ $userMessage
 [분석 기준]
 - emotions: 각 감정의 강도 (0=없음, 10=매우 강함)
   - joy: 기쁨, 행복, 즐거움
-  - sadness: 슬픔, 우울함, 허무함
+  - sadness: 슬픔, 우울함, 허무함 
   - anger: 분노, 짜증, 억울함
   - anxiety: 불안, 걱정, 두려움
   - peace: 평온, 안정, 편안함
@@ -273,7 +273,12 @@ $userMessage
 
       // DB 저장용 JSON 로그
       debugPrint('[EMOTION_RESULT] ${analysis.toJson()}');
-      // TODO: DB에 저장 - analysis.toJson() 사용
+
+      // 점수 계산 로그
+      debugPrint('[SCORE] 긍정 점수: ${analysis.positiveScore.toStringAsFixed(2)} (0-10)');
+      debugPrint('[SCORE] 부정 점수: ${analysis.negativeScore.toStringAsFixed(2)} (0-10)');
+      debugPrint('[SCORE] 최종 점수: ${analysis.finalScore.toStringAsFixed(2)} (0-100)');
+      // TODO: DB에 저장 - analysis.toJson(), analysis.finalScore 사용
 
       // 🧠 2) 실제 답변 생성
       final reply = await _callGemini(text);
@@ -530,6 +535,28 @@ class EmotionAnalysisResult {
       'sentiment': sentiment,
       'keywords': keywords,
     };
+  }
+
+  /// 긍정 점수 계산: (joy + peace) / 2 (0-10 범위)
+  double get positiveScore {
+    final joy = emotions['joy'] ?? 0;
+    final peace = emotions['peace'] ?? 0;
+    return (joy + peace) / 2.0;
+  }
+
+  /// 부정 점수 계산: (sadness + anger + anxiety) / 3 (0-10 범위)
+  double get negativeScore {
+    final sadness = emotions['sadness'] ?? 0;
+    final anger = emotions['anger'] ?? 0;
+    final anxiety = emotions['anxiety'] ?? 0;
+    return (sadness + anger + anxiety) / 3.0;
+  }
+
+  /// 최종 점수 계산: (긍정 점수 / (긍정 점수 + 부정 점수 + 0.01)) × 100
+  double get finalScore {
+    final pos = positiveScore;
+    final neg = negativeScore;
+    return (pos / (pos + neg + 0.01)) * 100;
   }
 }
 
