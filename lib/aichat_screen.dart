@@ -1,13 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
-// ⚠️ 실제 앱에서는 이렇게 하드코딩하지 말고
-// --dart-define=GEMINI_API_KEY=... 로 넘기거나, 안전한 저장소에 넣는 게 좋아.
-// 여기서는 구조 설명을 위해 상수로
-const String geminiApiKey = 'AIzaSyAWgJ85UBwyjxI-euQ8z3f1r9r8-pNrJoU';
-
-// 네가 Java에서 쓰던 것과 같은 엔드포인트 구조
+// Gemini API 엔드포인트
 const String geminiEndpoint =
     'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 
@@ -42,11 +38,12 @@ class _AIChatScreenState extends State<AIChatScreen> {
 
   /// ✅ MyApplication의 requestGeminiResponse()를 Dart로 옮긴 버전
   Future<String> _callGemini(String userMessage) async {
-    if (geminiApiKey.isEmpty) {
+    final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
+    if (apiKey.isEmpty) {
       throw Exception('Gemini API 키가 설정되어 있지 않습니다.');
     }
 
-    final uri = Uri.parse('$geminiEndpoint?key=$geminiApiKey');
+    final uri = Uri.parse('$geminiEndpoint?key=$apiKey');
 
     // 🧠 상담사 역할 + 스타일을 명시하는 프롬프트
     final counselorPrompt = '''
@@ -123,11 +120,12 @@ $userMessage
 
   /// 🧠 유저 메시지에서 감정 분석을 수행하는 함수
   Future<EmotionAnalysisResult> _analyzeEmotions(String userMessage) async {
-    if (geminiApiKey.isEmpty) {
+    final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
+    if (apiKey.isEmpty) {
       return EmotionAnalysisResult.empty();
     }
 
-    final uri = Uri.parse('$geminiEndpoint?key=$geminiApiKey');
+    final uri = Uri.parse('$geminiEndpoint?key=$apiKey');
 
     final prompt = '''
 너는 한국어 심리상담 전문 분석가야.
@@ -268,8 +266,14 @@ $userMessage
     });
 
     try {
-      // 🧠 1) 감정 분석
-      final analysis = await _analyzeEmotions(text);
+      // 🧠 감정 분석 + 답변 생성 병렬 실행
+      final results = await Future.wait([
+        _analyzeEmotions(text),
+        _callGemini(text),
+      ]);
+
+      final analysis = results[0] as EmotionAnalysisResult;
+      final reply = results[1] as String;
 
       // DB 저장용 JSON 로그
       debugPrint('[EMOTION_RESULT] ${analysis.toJson()}');
@@ -277,11 +281,14 @@ $userMessage
       // 점수 계산 로그
       debugPrint('[SCORE] 긍정 점수: ${analysis.positiveScore.toStringAsFixed(2)} (0-10)');
       debugPrint('[SCORE] 부정 점수: ${analysis.negativeScore.toStringAsFixed(2)} (0-10)');
-      debugPrint('[SCORE] 최종 점수: ${analysis.finalScore.toStringAsFixed(2)} (0-100)');
-      // TODO: DB에 저장 - analysis.toJson(), analysis.finalScore 사용
+      debugPrint('');
+      debugPrint('=== 점수 비교 ===');
+      debugPrint('[A-1 방식] emotions 비율: ${analysis.finalScoreA1.toStringAsFixed(2)}점');
+      debugPrint('[B-3 방식] sentiment 정규화: ${analysis.finalScoreB3.toStringAsFixed(2)}점');
+      debugPrint('[차이] ${(analysis.finalScoreA1 - analysis.finalScoreB3).abs().toStringAsFixed(2)}점');
+      debugPrint('================');
 
-      // 🧠 2) 실제 답변 생성
-      final reply = await _callGemini(text);
+      // TODO: DB에 저장 - analysis.toJson(), analysis.finalScoreA1, analysis.finalScoreB3 사용
 
       setState(() {
         // "생각 중" 버블 제거
@@ -552,11 +559,23 @@ class EmotionAnalysisResult {
     return (sadness + anger + anxiety) / 3.0;
   }
 
-  /// 최종 점수 계산: (긍정 점수 / (긍정 점수 + 부정 점수 + 0.01)) × 100
-  double get finalScore {
+  /// 최종 점수 계산 (A-1 방식): (긍정 점수 / (긍정 점수 + 부정 점수 + 0.01)) × 100
+  double get finalScoreA1 {
     final pos = positiveScore;
     final neg = negativeScore;
     return (pos / (pos + neg + 0.01)) * 100;
   }
-}
 
+  /// 최종 점수 계산 (B-3 방식): ((positive - negative + 1) / 2) × 100
+  double get finalScoreB3 {
+    final positive = sentiment['positive'] ?? 0.0;
+    final negative = sentiment['negative'] ?? 0.0;
+    final score = ((positive - negative + 1) / 2) * 100;
+
+    // 0-100 범위 제한
+    return score.clamp(0.0, 100.0);
+  }
+
+  /// 기본 finalScore는 A-1 방식 사용 (하위 호환성)
+  double get finalScore => finalScoreA1;
+}

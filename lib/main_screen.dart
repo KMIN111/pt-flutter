@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:untitled/profile_tab.dart';
+import 'package:untitled/services/firestore_service.dart';
 
 // [!!] 1단계에서 만든 '추적' 탭 파일을 가져옵니다.
 import 'emotion_tracking_tab.dart';
@@ -467,8 +469,24 @@ class _HomeScreenContentState extends State<_HomeScreenContent> {
             ),
             const SizedBox(height: 24.0),
             ElevatedButton(
-              onPressed: () {
-                // TODO: 기분 분석 로직
+              onPressed: () async {
+                // 슬라이더 값(1-10)을 100점 만점으로 변환
+                final int moodScore = (_currentMoodValue * 10).round();
+                debugPrint('[MOOD_CHECK] 슬라이더 값: ${_currentMoodValue.round()} / 10');
+                debugPrint('[MOOD_CHECK] 기분 점수: $moodScore / 100');
+
+                // Firestore에 저장
+                final userId = FirebaseAuth.instance.currentUser?.uid;
+                if (userId != null) {
+                  final firestoreService = FirestoreService();
+                  await firestoreService.updateDailyMentalStatus(
+                    uid: userId,
+                    moodCheckScore: moodScore,
+                  );
+                  debugPrint('[MOOD_CHECK] Firestore 저장 완료!');
+                } else {
+                  debugPrint('[MOOD_CHECK] 로그인되지 않음 - 저장 실패');
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: kColorBtnPrimary,
