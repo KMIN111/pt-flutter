@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:health/health.dart' as health;
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -6,13 +7,14 @@ class HealthService {
   final health.Health _healthFactory = health.Health();
 
   // 가져올 데이터 타입 정의
-  // 주의: HEART_RATE_VARIABILITY_SDNN은 Health Connect에서 지원되지 않음
   static final List<health.HealthDataType> _dataTypes = [
     health.HealthDataType.STEPS,
     health.HealthDataType.ACTIVE_ENERGY_BURNED,
     health.HealthDataType.HEART_RATE,
     health.HealthDataType.RESTING_HEART_RATE,
-    // health.HealthDataType.HEART_RATE_VARIABILITY_SDNN, // Health Connect에서 미지원
+    // HRV 타입들 (Health Connect RMSSD 지원 테스트)
+    health.HealthDataType.HEART_RATE_VARIABILITY_RMSSD, // 🆕 Health Connect 테스트
+    // health.HealthDataType.HEART_RATE_VARIABILITY_SDNN, // Health Connect 미지원 확인됨
   ];
 
   /// Health Connect가 사용 가능한지 확인 (Android만 해당)
@@ -28,6 +30,7 @@ class HealthService {
   }
 
   /// Health 권한 요청
+  /// Health Connect (Android) 또는 Apple Health (iOS)
   Future<bool> requestAuthorization() async {
     try {
       // 읽기 권한 목록 생성 (모든 데이터 타입에 대해)
@@ -127,15 +130,19 @@ class HealthService {
       DateTime startDate) async {
     try {
       final endDate = startDate.add(const Duration(days: 1));
+
+      // 심박수 및 HRV 데이터 요청
       List<health.HealthDataPoint> heartData = await _healthFactory
           .getHealthDataFromTypes(
         types: [
           health.HealthDataType.HEART_RATE,
-          health.HealthDataType.HEART_RATE_VARIABILITY_SDNN
+          health.HealthDataType.HEART_RATE_VARIABILITY_RMSSD, // 🆕 RMSSD 포함
         ],
         startTime: startDate,
         endTime: endDate,
       );
+
+      print('가져온 심박수 데이터 포인트 수: ${heartData.length}');
 
       // 중복 제거 (Set을 사용하여 UUID 기반으로 중복 제거)
       final uniqueHeartData = <String, health.HealthDataPoint>{};
@@ -143,12 +150,69 @@ class HealthService {
         uniqueHeartData[point.uuid] = point;
       }
       heartData = uniqueHeartData.values.toList();
+      print('중복 제거 후 심박수 데이터: ${heartData.length}개');
 
-      // 2시간 간격으로 데이터 그룹화
+      // 2시간 간격으로 데이터 그룹화 및 평균 계산
       return _groupDataByHour(heartData, startDate);
     } catch (e) {
       print('시간별 심박 데이터 가져오기 실패: $e');
       return [];
+    }
+  }
+
+  /// 특정 시간 범위의 평균 심박수 가져오기
+  Future<Map<String, dynamic>> fetchAverageHeartData({
+    required DateTime startTime,
+    required DateTime endTime,
+  }) async {
+    try {
+      // 심박수 데이터 가져오기
+      List<health.HealthDataPoint> heartData = await _healthFactory
+          .getHealthDataFromTypes(
+        types: [health.HealthDataType.HEART_RATE],
+        startTime: startTime,
+        endTime: endTime,
+      );
+
+      if (heartData.isEmpty) {
+        print('시간대 ${startTime.hour}:00-${endTime.hour}:00 데이터 없음');
+        return {'avgHR': null, 'avgHRV': null, 'count': 0};
+      }
+
+      // 중복 제거
+      final uniqueData = <String, health.HealthDataPoint>{};
+      for (var point in heartData) {
+        uniqueData[point.uuid] = point;
+      }
+      heartData = uniqueData.values.toList();
+
+      // 평균 심박수 계산
+      int totalHR = 0;
+      int count = 0;
+
+      for (var point in heartData) {
+        final value = point.value;
+        if (value is health.NumericHealthValue) {
+          totalHR += value.numericValue.round();
+          count++;
+        }
+      }
+
+      final avgHR = count > 0 ? (totalHR / count).round() : null;
+
+      // HRV 추정 (심박수 기반)
+      final avgHRV = avgHR != null ? estimateHRVFromHeartRate(avgHR, null) : 35;
+
+      print('시간대 ${startTime.hour}:00-${endTime.hour}:00: 평균 심박수 $avgHR, HRV $avgHRV (추정) (${count}개 데이터)');
+
+      return {
+        'avgHR': avgHR,
+        'avgHRV': avgHRV, // 심박수 기반 HRV 추정 🆕
+        'count': count,
+      };
+    } catch (e) {
+      print('평균 심박 데이터 가져오기 실패: $e');
+      return {'avgHR': null, 'avgHRV': null, 'count': 0};
     }
   }
 
@@ -157,9 +221,13 @@ class HealthService {
       List<health.HealthDataPoint> healthData, DateTime now) {
     int steps = 0;
     double activeCalories = 0;
-    int currentHR = 72;
-    int currentHRV = 35;
-    int restingHR = 65;
+    int? currentHR; // null = 데이터 없음
+    int? currentHRV; // null = 데이터 없음
+    int? restingHR; // null = 데이터 없음
+
+    bool hasSteps = false;
+    bool hasCalories = false;
+    bool hasHeartRate = false;
 
     for (var point in healthData) {
       final value = point.value;
@@ -167,22 +235,27 @@ class HealthService {
         switch (point.type) {
           case health.HealthDataType.STEPS:
             steps += value.numericValue.round();
+            hasSteps = true;
             break;
           case health.HealthDataType.ACTIVE_ENERGY_BURNED:
             activeCalories += value.numericValue;
+            hasCalories = true;
             break;
           case health.HealthDataType.HEART_RATE:
             // 가장 최근 심박수 사용
             if (point.dateTo.isAfter(
                 now.subtract(const Duration(minutes: 10)))) {
               currentHR = value.numericValue.round();
+              hasHeartRate = true;
             }
             break;
           case health.HealthDataType.HEART_RATE_VARIABILITY_SDNN:
-            // 가장 최근 HRV 사용
+          case health.HealthDataType.HEART_RATE_VARIABILITY_RMSSD: // 🆕 RMSSD 추가
+            // 가장 최근 HRV 사용 (SDNN 또는 RMSSD)
             if (point.dateTo.isAfter(
                 now.subtract(const Duration(minutes: 10)))) {
               currentHRV = value.numericValue.round();
+              print('HRV 발견: $currentHRV ms (${point.type})');
             }
             break;
           case health.HealthDataType.RESTING_HEART_RATE:
@@ -194,6 +267,17 @@ class HealthService {
       }
     }
 
+    // HRV가 없으면 심박수 기반으로 추정
+    if (currentHR != null && currentHRV == null) {
+      currentHRV = estimateHRVFromHeartRate(currentHR, restingHR);
+      print('HRV를 심박수 기반으로 추정: $currentHRV ms');
+    }
+
+    print('처리된 데이터: 걸음수=$steps (데이터 있음: $hasSteps), '
+        '칼로리=$activeCalories (데이터 있음: $hasCalories), '
+        '심박수=$currentHR (데이터 있음: $hasHeartRate), '
+        'HRV=$currentHRV ${currentHRV != null ? '(추정)' : ''}');
+
     return {
       'steps': steps,
       'activeCalories': activeCalories,
@@ -204,12 +288,12 @@ class HealthService {
     };
   }
 
-  /// 시간별로 데이터 그룹화
+  /// 시간별로 데이터 그룹화 및 평균 계산
   List<Map<String, dynamic>> _groupDataByHour(
       List<health.HealthDataPoint> data, DateTime startDate) {
     List<Map<String, dynamic>> hourlyData = [];
 
-    // 2시간 간격으로 데이터 그룹화
+    // 2시간 간격으로 데이터 그룹화 (06:00-08:00, 08:00-10:00, ...)
     for (int hour = 6; hour < 22; hour += 2) {
       final timeSlotStart = DateTime(
           startDate.year, startDate.month, startDate.day, hour);
@@ -220,9 +304,12 @@ class HealthService {
           point.dateFrom.isAfter(timeSlotStart) &&
           point.dateFrom.isBefore(timeSlotEnd));
 
-      if (timeSlotData.isEmpty) continue;
+      if (timeSlotData.isEmpty) {
+        print('⚠️ ${hour}:00-${hour + 2}:00 시간대: 데이터 없음');
+        continue;
+      }
 
-      // 평균 계산
+      // 해당 시간대의 평균 심박수 계산
       int hrSum = 0;
       int hrCount = 0;
       int hrvSum = 0;
@@ -234,29 +321,69 @@ class HealthService {
           if (point.type == health.HealthDataType.HEART_RATE) {
             hrSum += value.numericValue.round();
             hrCount++;
-          } else if (point.type ==
-              health.HealthDataType.HEART_RATE_VARIABILITY_SDNN) {
+          } else if (point.type == health.HealthDataType.HEART_RATE_VARIABILITY_SDNN ||
+                     point.type == health.HealthDataType.HEART_RATE_VARIABILITY_RMSSD) { // 🆕 RMSSD 추가
             hrvSum += value.numericValue.round();
             hrvCount++;
+            print('HRV 데이터 발견: ${value.numericValue.round()} ms (${point.type})');
           }
         }
       }
 
-      if (hrCount > 0 && hrvCount > 0) {
+      // 심박수 데이터만 있어도 스트레스 로그 추가 (HRV는 옵션)
+      if (hrCount > 0) {
         final avgHR = hrSum ~/ hrCount;
-        final avgHRV = hrvSum ~/ hrvCount;
+
+        // HRV가 없으면 심박수 기반으로 추정
+        final avgHRV = hrvCount > 0
+            ? hrvSum ~/ hrvCount  // 실제 HRV 데이터 사용
+            : estimateHRVFromHeartRate(avgHR, null); // 심박수 기반 추정 🆕
+
         final stress = calculateStressLevel(avgHR, avgHRV);
+
+        print('✅ ${hour}:00-${hour + 2}:00 시간대: 평균 심박수 $avgHR BPM, HRV $avgHRV ms ${hrvCount > 0 ? '(실제)' : '(추정)'} (${hrCount}개 데이터)');
 
         hourlyData.add({
           'time': '${hour.toString().padLeft(2, '0')}:00',
           'hr': avgHR,
           'hrv': avgHRV,
           'stress': stress,
+          'dataCount': hrCount, // 데이터 개수 추가
         });
       }
     }
 
+    print('📊 그룹화된 시간별 데이터: ${hourlyData.length}개 시간대 (총 ${data.length}개 데이터 포인트)');
     return hourlyData;
+  }
+
+  /// 심박수 기반 HRV 추정
+  /// Samsung Health가 없을 때 심박수를 기반으로 HRV를 추정
+  /// 완벽하지 않지만 고정값보다는 나음
+  int estimateHRVFromHeartRate(int heartRate, int? restingHR) {
+    final restingHeartRate = restingHR ?? 60;
+
+    // 안정 시 심박수 대비 현재 심박수 비율
+    final hrRatio = heartRate / restingHeartRate;
+
+    // 심박수가 높을수록 HRV는 낮아지는 경향
+    // 과학적 근거: 교감신경 활성화 시 HR↑, HRV↓
+    if (hrRatio <= 1.0) {
+      // 안정 상태 또는 그 이하 → 높은 HRV
+      return 50 + ((1.0 - hrRatio) * 30).round(); // 50-80ms
+    } else if (hrRatio <= 1.15) {
+      // 약간 증가 → 중간 HRV
+      return 35 + ((1.15 - hrRatio) * 100).round(); // 35-50ms
+    } else if (hrRatio <= 1.3) {
+      // 중간 정도 증가 → 낮은 HRV
+      return 25 + ((1.3 - hrRatio) * 67).round(); // 25-35ms
+    } else if (hrRatio <= 1.5) {
+      // 많이 증가 → 매우 낮은 HRV
+      return 15 + ((1.5 - hrRatio) * 50).round(); // 15-25ms
+    } else {
+      // 극도로 높음 → 최소 HRV
+      return 15; // 15ms
+    }
   }
 
   /// 스트레스 레벨 계산
@@ -276,7 +403,16 @@ class HealthService {
   }
 
   /// 사용자 상태 분석
-  Map<String, dynamic> analyzeUserState(int heartRate, int hrv, int restingHR) {
+  Map<String, dynamic> analyzeUserState(int? heartRate, int? hrv, int? restingHR) {
+    // 데이터가 없으면 기본 상태 반환
+    if (heartRate == null || hrv == null || restingHR == null) {
+      return {
+        'state': '데이터 수집 중',
+        'stressLevel': 0,
+        'recommendation': 'Health Connect에 데이터 소스를 연결하고 웨어러블 기기를 동기화하세요.',
+      };
+    }
+
     final stressLevel = calculateStressLevel(heartRate, hrv);
 
     String state;
@@ -315,9 +451,9 @@ class HealthService {
     return {
       'steps': 0,
       'activeCalories': 0.0,
-      'currentHR': 72,
-      'currentHRV': 35,
-      'restingHR': 65,
+      'currentHR': null, // 데이터 없음
+      'currentHRV': null, // 데이터 없음
+      'restingHR': null, // 데이터 없음
       'timestamp': DateTime.now(),
     };
   }
@@ -359,6 +495,73 @@ class HealthService {
           .toList();
     } catch (e) {
       print('Firestore에서 데이터 가져오기 실패: $e');
+      return [];
+    }
+  }
+
+  /// 연결된 데이터 소스 및 기기 정보 가져오기
+  Future<List<Map<String, dynamic>>> getConnectedDevices() async {
+    try {
+      final now = DateTime.now();
+      final yesterday = now.subtract(const Duration(days: 1));
+
+      // 최근 데이터를 가져와서 소스 확인
+      List<health.HealthDataPoint> healthData = await _healthFactory
+          .getHealthDataFromTypes(
+        types: [health.HealthDataType.STEPS, health.HealthDataType.HEART_RATE],
+        startTime: yesterday,
+        endTime: now,
+      );
+
+      // 기기 정보 추출 (중복 제거)
+      Map<String, Map<String, dynamic>> deviceMap = {};
+
+      for (var point in healthData) {
+        // 기기 ID를 키로 사용
+        final deviceKey = '${point.sourceId}_${point.sourceName}';
+
+        if (!deviceMap.containsKey(deviceKey)) {
+          // 기기 정보 구성
+          String deviceName = point.sourceName;
+          String manufacturer = '';
+          String model = '';
+
+          // sourceName에서 기기 정보 추출
+          if (point.sourceName.toLowerCase().contains('samsung')) {
+            manufacturer = 'Samsung';
+            if (point.sourceName.toLowerCase().contains('watch')) {
+              deviceName = 'Samsung Galaxy Watch';
+            }
+          } else if (point.sourceName.toLowerCase().contains('fitbit')) {
+            manufacturer = 'Fitbit';
+            deviceName = 'Fitbit Device';
+          } else if (point.sourceName.toLowerCase().contains('garmin')) {
+            manufacturer = 'Garmin';
+            deviceName = 'Garmin Device';
+          } else if (point.sourceName.toLowerCase().contains('apple')) {
+            manufacturer = 'Apple';
+            deviceName = 'Apple Watch';
+          } else if (point.sourceName.toLowerCase().contains('google fit')) {
+            manufacturer = 'Google';
+            deviceName = 'Google Fit (연결된 기기)';
+          }
+
+          deviceMap[deviceKey] = {
+            'name': deviceName.isNotEmpty ? deviceName : point.sourceName,
+            'manufacturer': manufacturer,
+            'sourceName': point.sourceName,
+            'sourceId': point.sourceId,
+            'lastSync': point.dateTo,
+          };
+
+          print('발견된 기기: $deviceName (${point.sourceName})');
+        }
+      }
+
+      print('총 ${deviceMap.length}개 기기 발견');
+      return deviceMap.values.toList();
+    } catch (e) {
+      print('기기 정보 가져오기 실패: $e');
       return [];
     }
   }

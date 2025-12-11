@@ -522,6 +522,7 @@ class SignUpScreenState extends State<SignUpScreen> {
         icon: Image.asset(
         'assets/images/google_logo.png',
         height: 24.0,
+        errorBuilder: (context, error, stackTrace) => const Icon(Icons.error_outline, color: kColorTextSubtitle),
       ),
       label: Text(
         'Google로 계속하기',

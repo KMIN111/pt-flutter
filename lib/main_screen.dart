@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
+import 'dart:io'; // Platform detection
 import 'package:google_fonts/google_fonts.dart';
 import 'package:untitled/wearable_device_screen.dart';
 import 'package:untitled/profile_tab.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:untitled/services/health_service.dart'; // HealthService import
 
 // [!!] 1단계에서 만든 '추적' 탭 파일을 가져옵니다.
 import 'emotion_tracking_tab.dart';
 import 'healing_screen.dart';
 import 'diagnosis_screen.dart';
 import 'mood_detail_questions_screen.dart';
+import 'aichat_screen.dart'; // AIChatScreen 추가
 
 // --- Color Definitions ---
 const Color kColorBgStart = Color(0xFFEFF6FF);
@@ -59,28 +62,7 @@ final Map<String, String> kTexts = {
   'nav_profile': '프로필',
 };
 
-// [!!] '상담'과 '프로필' 탭을 위한 임시 화면입니다.
-class PlaceholderTab extends StatelessWidget {
-  final String title;
-  const PlaceholderTab({super.key, required this.title});
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(title, style: GoogleFonts.roboto(color: kColorTextTitle)),
-        backgroundColor: Colors.white,
-        centerTitle: true,
-      ),
-      body: Center(
-        child: Text(
-          '$title 페이지',
-          style: GoogleFonts.roboto(fontSize: 24, color: kColorTextSubtitle),
-        ),
-      ),
-    );
-  }
-}
 
 
 /// 탭을 관리하는 메인 스크린 (허브 역할)
@@ -95,13 +77,51 @@ class MainScreenState extends State<MainScreen> {
   // [!!] '홈' 탭의 슬라이더 값(_currentMoodValue)은
   // 이제 _HomeScreenContent 위젯 내부에서 관리합니다.
   int _selectedIndex = 0; // '홈' 탭을 기본값으로 설정
+  final HealthService _healthService = HealthService();
+  bool _healthPermissionRequested = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 로그인 성공 시 한번에 모든 Health 권한 요청
+    _requestHealthPermissions();
+  }
+
+  /// 앱 시작 시 모든 Health 권한을 한번에 요청
+  Future<void> _requestHealthPermissions() async {
+    if (_healthPermissionRequested) return;
+    _healthPermissionRequested = true;
+
+    try {
+      // Android: Health Connect 상태 확인
+      if (Platform.isAndroid) {
+        final status = await _healthService.checkHealthConnectStatus();
+        if (status.toString().contains('unavailable')) {
+          print('Health Connect가 설치되지 않았습니다.');
+          return;
+        }
+      }
+
+      // 모든 Health 데이터 타입에 대한 권한을 한번에 요청
+      print('🔐 앱 시작: 모든 Health 권한 요청 시작...');
+      bool authorized = await _healthService.requestAuthorization();
+
+      if (authorized) {
+        print('✅ 모든 Health 권한이 허용되었습니다.');
+      } else {
+        print('⚠️ Health 권한이 거부되었습니다.');
+      }
+    } catch (e) {
+      print('❌ Health 권한 요청 실패: $e');
+    }
+  }
 
   // [!!] 각 탭에 보여줄 페이지 위젯 리스트입니다.
   static final List<Widget> _pages = <Widget>[
     // 0: 홈 탭 (디자인 보존을 위해 별도 위젯으로 분리)
     const _HomeScreenContent(),
-    // 1: 상담 탭 (임시)
-    const PlaceholderTab(title: '상담'),
+    // 1: 상담 탭 (AIChatScreen으로 연결)
+    const AIChatScreen(),
     // 2: 추적 탭 (파일 1에서 만든 위젯)
     // '추적' 탭은 자체 디자인에 맞는 AppBar가 필요합니다.
     Scaffold(

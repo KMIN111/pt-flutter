@@ -10,6 +10,9 @@ import 'add_contact_sheet.dart'; // [!!] 팝업창 위젯 import
 import 'personal_info_screen.dart'; // [!!] 1. 새로 만든 페이지 import
 import 'health_result_page.dart';
 
+// [주의] MainScreen에서 이미 모든 Health 권한을 요청했으므로,
+// 이 파일에서는 권한 요청 없이 데이터만 가져옵니다.
+
 // RTF 파일에서 정의된 색상 상수 (주석 처리 또는 main_screen.dart에서 가져옴)
 // const Color kPageBackground = Color(0xFFF9FAFB); // Use kColorBgStart
 // const Color kCardBackground = Color(0xFFFFFFFF); // Use kColorCardBg
@@ -62,17 +65,33 @@ class ProfileTabState extends State<ProfileTab> {
     _fetchStepData();
   }
 
+  /// 걸음 수 데이터 가져오기
+  /// [주의] MainScreen에서 이미 권한을 요청했으므로 여기서는 데이터만 가져옵니다.
   Future<void> _fetchStepData() async {
-    bool requested = await _health.requestAuthorization([HealthDataType.STEPS]);
-    if (requested) {
+    try {
       final now = DateTime.now();
       final midnight = DateTime(now.year, now.month, now.day);
-      int? steps = await _health.getTotalStepsInInterval(midnight, now);
-      if (steps != null) {
-        setState(() {
-          _stepCount = steps;
-        });
+
+      // 권한 확인 (요청하지 않고 확인만)
+      bool? hasPermission = await _health.hasPermissions(
+        [HealthDataType.STEPS],
+        permissions: [HealthDataAccess.READ],
+      );
+
+      if (hasPermission == true) {
+        int? steps = await _health.getTotalStepsInInterval(midnight, now);
+        if (steps != null) {
+          if (mounted) {
+            setState(() {
+              _stepCount = steps;
+            });
+          }
+        }
+      } else {
+        print('⚠️ 걸음 수 권한이 없습니다. MainScreen에서 권한을 요청하세요.');
       }
+    } catch (e) {
+      print('걸음 수 데이터 가져오기 실패: $e');
     }
   }
 

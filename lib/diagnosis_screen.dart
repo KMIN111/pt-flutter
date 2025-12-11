@@ -622,7 +622,7 @@ class _SurveyScreenState extends State<SurveyScreen> {
 
       if (_currentUserId != null) {
         await _firestoreService.updateMentalHealthScore(
-            _currentUserId!, result.score);
+            _currentUserId!, widget.title, result.score);
         // Optionally show a snackbar for successful save, but dialog will show result
       } else {
         // Handle case where user is not logged in

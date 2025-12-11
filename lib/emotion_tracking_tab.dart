@@ -957,32 +957,30 @@ Widget _buildWeeklyMetricChart(String title, Color color, Stream<List<Map<String
   }
 
   Widget _buildSummaryItem(String label, String value) {
-    return Flexible(
-      child: Column(
-        children: [
-          Text(
-            label,
-            style: GoogleFonts.roboto(
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: const Color(0xFF6B7280),
-            ),
-            overflow: TextOverflow.ellipsis,
-            maxLines: 1,
-            textAlign: TextAlign.center,
+    return Column(
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.roboto(
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+            color: const Color(0xFF6B7280),
           ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: GoogleFonts.roboto(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: const Color(0xFF1F2937),
-            ),
-            overflow: TextOverflow.ellipsis,
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: GoogleFonts.roboto(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: const Color(0xFF1F2937),
           ),
-        ],
-      ),
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
     );
   }
 
