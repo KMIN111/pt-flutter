@@ -312,27 +312,30 @@ class _HomeScreenContentState extends State<_HomeScreenContent> {
                 Row(
                   children: [
                     Expanded(
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(16.0),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const DiagnosisScreen(),
+                      child: SizedBox(
+                        height: 190,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16.0),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const DiagnosisScreen(),
+                              ),
+                            );
+                          },
+                          child: _buildSmallFeatureCard(
+                            iconWidget: Image.asset(
+                              'assets/images/heart_pulse_icon.png',
+                              width: 48.0,
+                              height: 48.0,
+                              errorBuilder: (context, error, stackTrace) =>
+                              const Icon(Icons.error_outline,
+                                  color: kColorError, size: 48.0),
                             ),
-                          );
-                        },
-                        child: _buildSmallFeatureCard(
-                          iconWidget: Image.asset(
-                            'assets/images/heart_pulse_icon.png',
-                            width: 48.0,
-                            height: 48.0,
-                            errorBuilder: (context, error, stackTrace) =>
-                            const Icon(Icons.error_outline,
-                                color: kColorError, size: 48.0),
+                            title: kTexts['mental_health_title']!,
+                            subtitle: kTexts['mental_health_subtitle']!,
                           ),
-                          title: kTexts['mental_health_title']!,
-                          subtitle: kTexts['mental_health_subtitle']!,
                         ),
                       ),
                     ),
