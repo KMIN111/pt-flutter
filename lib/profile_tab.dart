@@ -651,36 +651,51 @@ class ProfileTabState extends State<ProfileTab> {
     );
   }
 
-  // [!!] 3. 계정 설정 카드 (수정됨) ---
+  // 3. 계정 설정 카드
   Widget _buildAccountCard() {
-    // [!!] 4. 공통으로 사용할 내비게이션 로직 정의
     VoidCallback navigateToSettings = () {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const PersonalInfoScreen()),
-      );
+      if (_currentUserId == null) return;
+
+      final email = FirebaseAuth.instance.currentUser?.email ?? '';
+
+      _firestoreService
+          .getUserStream(_currentUserId!)
+          .first
+          .then((userData) {
+        if (userData != null && context.mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PersonalInfoScreen(
+                userData: userData,
+                email: email,
+              ),
+            ),
+          );
+        }
+      });
     };
+
 
     return _buildCardContainer(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             '계정',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
           ),
-          SizedBox(height: 16),
-          // [!!] 5. onTap 핸들러를 전달하도록 _buildMenuItem 수정
+          const SizedBox(height: 16),
           _buildMenuItem(
             icon: Icons.lock_person,
             iconColor: kColorBtnPrimary,
             text: '개인정보 설정',
-            onTap: navigateToSettings, // [!!] 6. 내비게이션 로직 전달
+            onTap: navigateToSettings, // 여기서 실행
           ),
-          SizedBox(height: 8), // Add some spacing
+          const SizedBox(height: 8),
           _buildMenuItem(
             icon: Icons.logout,
-            iconColor: kColorError, // Use a red color for logout
+            iconColor: kColorError,
             text: '로그아웃',
             onTap: () async {
               await FirebaseAuth.instance.signOut();
@@ -690,6 +705,7 @@ class ProfileTabState extends State<ProfileTab> {
       ),
     );
   }
+
 
   // --- 5. 회원 탈퇴 카드 (기존과 동일, 버튼 스타일 수정) ---
   Widget _buildDeleteAccountCard() {

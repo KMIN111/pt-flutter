@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:untitled/main_screen.dart'; // Import main_screen.dart for shared color constants
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 // profile_tab.dart 또는 main.dart에 정의된 색상 상수들을 가져옵니다.
 // (일관성을 위해 profile_tab.dart의 상수들을 그대로 사용합니다)
@@ -14,13 +16,22 @@ const Color kTextHint = Color(0xFF9CA3AF); // This seems unique to this file
 
 /// 개인정보 수정 페이지 (개인정보 설정.rtf 기반)
 class PersonalInfoScreen extends StatefulWidget {
-  const PersonalInfoScreen({super.key});
+  final Map<String, dynamic> userData;
+  final String email;
+
+
+  const PersonalInfoScreen({
+    super.key,
+    required this.userData,
+    required this.email,
+  });
 
   @override
   PersonalInfoScreenState createState() => PersonalInfoScreenState();
 }
 
 class PersonalInfoScreenState extends State<PersonalInfoScreen> {
+  final String uid = FirebaseAuth.instance.currentUser!.uid;
 
   // (예시) 입력 필드를 위한 컨트롤러
   late TextEditingController _nameController;
@@ -38,11 +49,15 @@ class PersonalInfoScreenState extends State<PersonalInfoScreen> {
   @override
   void initState() {
     super.initState();
-    // RTF에 있는 초기값으로 설정
-    _nameController = TextEditingController(text: '홍길동');
-    _phoneController = TextEditingController(text: '010-1234-5678');
 
-    // [!!] 3. 비밀번호 컨트롤러 초기화
+    _nameController = TextEditingController(
+      text: widget.userData['name'] ?? '',
+    );
+
+    _phoneController = TextEditingController(
+      text: widget.userData['phone'] ?? '',
+    );
+
     _currentPasswordController = TextEditingController();
     _newPasswordController = TextEditingController();
     _confirmPasswordController = TextEditingController();
@@ -103,16 +118,27 @@ class PersonalInfoScreenState extends State<PersonalInfoScreen> {
               label: '이름', // 'H3-22'
               controller: _nameController, // 'INPUT-25'
               buttonText: '변경', // 'BUTTON-31'
-              onPressed: () {
-                // TODO: 이름 변경 로직
+              onPressed: () async {
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(uid)
+                    .update({
+                  'name': _nameController.text.trim(),
+                });
+
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('이름이 변경되었습니다')),
+                );
               },
+
             ),
             SizedBox(height: 16),
 
             // 'DIV-35' (이메일 - readonly)
             _buildInfoRowReadOnly(
               label: '이메일', // 'H3-37'
-              value: 'example@email.com', // 'INPUT-40'
+              value: widget.email, // 'INPUT-40'
             ),
             SizedBox(height: 16),
 
@@ -122,16 +148,27 @@ class PersonalInfoScreenState extends State<PersonalInfoScreen> {
               controller: _phoneController, // 'INPUT-56'
               buttonText: '변경', // 'BUTTON-62'
               keyboardType: TextInputType.phone,
-              onPressed: () {
-                // TODO: 전화번호 변경 로직
+              onPressed: () async {
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(uid)
+                    .update({
+                  'phone': _phoneController.text.trim(),
+                });
+
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('전화번호가 변경되었습니다')),
+                );
               },
+
             ),
             SizedBox(height: 16),
 
             // 'DIV-66' (생년월일 - readonly)
             _buildInfoRowReadOnly(
               label: '생년월일', // 'H3-68'
-              value: '1990년 01월 01일', // 'INPUT-71'
+              value: widget.userData['birth'] ?? '', // 'INPUT-71'
             ),
             SizedBox(height: 16),
 
@@ -201,16 +238,19 @@ class PersonalInfoScreenState extends State<PersonalInfoScreen> {
                 ),
               ),
               SizedBox(width: 12),
-              ElevatedButton( // 'BUTTON'
+              ElevatedButton(
                 onPressed: onPressed,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: kColorBtnPrimary,
                   foregroundColor: Colors.white,
                   padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 child: Text(buttonText),
-              ),
+              )
+
             ],
           ),
         ],
@@ -332,20 +372,56 @@ class PersonalInfoScreenState extends State<PersonalInfoScreen> {
             SizedBox(width: 12),
             Expanded(
               child: ElevatedButton(
-                onPressed: () {
-                  // [!!] 12. '저장' 버튼 로직
-                  // TODO: 비밀번호 유효성 검사
-                  // (e.g., _newPasswordController.text == _confirmPasswordController.text)
-                  // TODO: (실제 앱) Firebase Auth 또는 API를 호출하여 비밀번호 변경
+                onPressed: () async {
+                  if (_newPasswordController.text != _confirmPasswordController.text) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('비밀번호가 일치하지 않습니다')),
+                    );
+                    return;
+                  }
 
-                  // 로직 완료 후, 상태를 다시 false로 변경
-                  setState(() {
-                    _isChangingPassword = false;
-                  });
-                  _currentPasswordController.clear();
-                  _newPasswordController.clear();
-                  _confirmPasswordController.clear();
+                  try {
+                    final user = FirebaseAuth.instance.currentUser!;
+                    final providers = user.providerData.map((e) => e.providerId).toList();
+
+                    if (!providers.contains('password')) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('소셜 로그인 계정은 비밀번호를 변경할 수 없습니다')),
+                      );
+                      return;
+                    }
+                    final email = user.email!;
+
+                    // ✅ 1. 재인증
+                    final credential = EmailAuthProvider.credential(
+                      email: email,
+                      password: _currentPasswordController.text,
+                    );
+
+                    await user.reauthenticateWithCredential(credential);
+
+                    // ✅ 2. 비밀번호 변경
+                    await user.updatePassword(_newPasswordController.text);
+
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('비밀번호가 변경되었습니다')),
+                    );
+
+                    setState(() {
+                      _isChangingPassword = false;
+                    });
+
+                    _currentPasswordController.clear();
+                    _newPasswordController.clear();
+                    _confirmPasswordController.clear();
+                  } on FirebaseAuthException catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('비밀번호 변경 실패: ${e.message}')),
+                    );
+                  }
                 },
+
                 style: ElevatedButton.styleFrom(
                   backgroundColor: kColorBtnPrimary,
                   foregroundColor: Colors.white,
