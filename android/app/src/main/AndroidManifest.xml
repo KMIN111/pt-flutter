@@ -109,6 +109,16 @@
 
         </activity>
 
+        <!-- Wearable Data Listener Service (워치로부터 HRV 데이터 수신) -->
+        <service
+            android:name=".WearDataListenerService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/hrv_data" />
+            </intent-filter>
+        </service>
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />

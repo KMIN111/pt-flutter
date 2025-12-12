@@ -10,9 +10,23 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MainActivity : FlutterFragmentActivity() {
+    companion object {
+        var instance: MainActivity? = null
+    }
+
     private val CHANNEL = "com.project.personaltherapy/samsung_health"
     private var healthDataStore: Any? = null
     private var samsungHealthAvailable = false
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        instance = this
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        instance = null
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -54,6 +68,15 @@ class MainActivity : FlutterFragmentActivity() {
                 }
                 "checkSamsungHealthAvailable" -> {
                     checkSamsungHealthAvailable(result)
+                }
+                "getLatestHrvData" -> {
+                    // 워치로부터 받은 최신 HRV 데이터 반환
+                    val latestData = WearDataListenerService.latestHrvData
+                    if (latestData != null) {
+                        result.success(latestData)
+                    } else {
+                        result.success(null)
+                    }
                 }
                 else -> {
                     result.notImplemented()

@@ -64,4 +64,7 @@ dependencies {
 
     // Google Play Services Tasks API
     implementation("com.google.android.gms:play-services-tasks:18.2.0")
+
+    // Wearable Data Layer (워치 앱과 통신)
+    implementation("com.google.android.gms:play-services-wearable:18.1.0")
 }
