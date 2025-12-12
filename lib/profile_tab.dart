@@ -173,18 +173,41 @@ class ProfileTabState extends State<ProfileTab> {
                 ],
               ),
               Divider(height: 32, color: Colors.grey[200]),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildStatItem('대화 횟수', conversationCount, kColorBtnPrimary),
-                  _buildStatItem('평균 건강점수', averageHealthScore, kPrimaryGreen),
-                  _buildStatItem('힐링 콘텐츠', healingContentCount, kPrimaryPurple),
-                ],
-              ),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildStatItem('대화 횟수', conversationCount, kColorBtnPrimary),
+                    SizedBox(width: 16), // Add spacing between items
+                    _buildStatItem('평균 건강점수', averageHealthScore, kPrimaryGreen),
+                    SizedBox(width: 16), // Add spacing between items
+                    _buildStatItem('힐링 콘텐츠', healingContentCount, kPrimaryPurple),
+                  ],
+                ),
+              )
             ],
           );
         },
       ),
+    );
+  }
+
+  // 스탯 아이템 (기존과 동일)
+  Widget _buildStatItem(String title, String value, Color color) {
+    return Column(
+      children: [
+        Text(title, style: TextStyle(fontSize: 12, color: kColorTextSubtitle)),
+        SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+      ],
     );
   }
 
@@ -736,24 +759,6 @@ class ProfileTabState extends State<ProfileTab> {
     );
   }
 
-  // 스탯 아이템 (기존과 동일)
-  Widget _buildStatItem(String title, String value, Color color) {
-    return Column(
-      children: [
-        Text(title, style: TextStyle(fontSize: 12, color: kColorTextSubtitle)),
-        SizedBox(height: 4),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-      ],
-    );
-  }
-
   // 연락처 아이템 헬퍼
   Widget _buildContactItem({
     required String name,
@@ -812,10 +817,14 @@ class ProfileTabState extends State<ProfileTab> {
             ),
           ),
           IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
             icon: Icon(Icons.edit, color: kColorTextSubtitle, size: 20),
             onPressed: onEdit,
           ),
           IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
             icon: Icon(Icons.delete, color: kColorError, size: 20),
             onPressed: onDelete,
           ),
