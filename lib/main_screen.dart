@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:ui';
+import 'dart:io'; // Platform detection
 import 'package:google_fonts/google_fonts.dart';
 import 'package:untitled/profile_tab.dart';
 import 'package:untitled/wearable_device_screen.dart';
 
-// [!!] 1단계에서 만든 '추적' 탭 파일을 가져옵니다.
+// [!!] 파일 임포트 복구
+import 'package:untitled/wearable_device_screen.dart'; // 웨어러블 화면
+import 'package:untitled/profile_tab.dart';
+import 'package:untitled/services/health_service.dart'; // 헬스 서비스
 import 'emotion_tracking_tab.dart';
 import 'healing_screen.dart';
 import 'diagnosis_screen.dart';
+import 'mood_detail_questions_screen.dart'; // 기분 상세 질문 화면
+import 'aichat_screen.dart';
 
 // --- Color Definitions ---
 const Color kColorBgStart = Color(0xFFEFF6FF);
@@ -16,22 +23,24 @@ const Color kColorTextTitle = Color(0xFF1F2937);
 const Color kColorTextSubtitle = Color(0xFF4B5563);
 const Color kColorTextLabel = Color(0xFF374151);
 const Color kColorTextHint = Color(0xFF9CA3AF);
-const Color kColorTextLink = Color(0xFF2563EB); // Primary Blue
-const Color kColorBtnPrimary = Color(0xFF2563EB); // Primary Blue
-const Color kColorEditTextBg = Color(0xFFF3F4F6); // Light Gray for text fields
-const Color kColorError = Color(0xFFEF4444); // Red for error messages
+const Color kColorTextLink = Color(0xFF2563EB);
+const Color kColorBtnPrimary = Color(0xFF2563EB);
+const Color kColorEditTextBg = Color(0xFFF3F4F6);
+const Color kColorError = Color(0xFFEF4444);
 
 // --- NEW Colors for Main Screen ---
-const Color kColorCardBg = Colors.white; // 카드 배경색
-const Color kColorMoodSliderActive = kColorBtnPrimary; // 슬라이더 활성 색상
-const Color kColorMoodSliderInactive = Color(0xFFD1D5DB); // 슬라이더 비활성 색상
-const Color kColorAccentIconBg = Color(0xFFF3F4FF); // 작은 카드 아이콘 배경
-const Color kColorEmergencyCardBg = Color(0xFFFEE2E2); // 긴급 상황 카드 배경 (연한 빨강)
-const Color kColorEmergencyBtnText = Color(0xFFEF4444); // 긴급 버튼 텍스트 (진한 빨강)
-const Color kColorEmergencyBtnBorder = Color(0xFFEF4444); // 긴급 버튼 테두리 (진한 빨강)
-const Color kColorBottomNavInactive = Color(0xFF9CA3AF); // 하단바 비활성 아이콘/텍스트
+const Color kColorCardBg = Colors.white;
+const Color kColorMoodSliderActive = kColorBtnPrimary;
+const Color kColorMoodSliderInactive = Color(0xFFD1D5DB);
+const Color kColorAccentIconBg = Color(0xFFF3F4FF);
+const Color kColorEmergencyCardBg = Color(0xFFFEE2E2);
+const Color kColorEmergencyBtnText = Color(0xFFEF4444);
+const Color kColorEmergencyBtnBorder = Color(0xFFEF4444);
+const Color kColorBottomNavInactive = Color(0xFF9CA3AF);
 
-// CSV 텍스트 데이터 (동일)
+bool _isMoodSelected = false;
+
+// CSV 텍스트 데이터
 final Map<String, String> kTexts = {
   'main_greeting': '안녕하세요!',
   'main_subtitle': '오늘 하루는 어떠셨나요? 마음의 건강을 함께 돌봐드릴게요.',
@@ -57,75 +66,68 @@ final Map<String, String> kTexts = {
   'nav_profile': '프로필',
 };
 
-// [!!] '상담'과 '프로필' 탭을 위한 임시 화면입니다.
-class PlaceholderTab extends StatelessWidget {
-  final String title;
-  const PlaceholderTab({Key? key, required this.title}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(title, style: GoogleFonts.roboto(color: kColorTextTitle)),
-        backgroundColor: Colors.white,
-        centerTitle: true,
-      ),
-      body: Center(
-        child: Text(
-          '$title 페이지',
-          style: GoogleFonts.roboto(fontSize: 24, color: kColorTextSubtitle),
-        ),
-      ),
-    );
-  }
-}
-
-
 /// 탭을 관리하는 메인 스크린 (허브 역할)
 class MainScreen extends StatefulWidget {
-  const MainScreen({Key? key}) : super(key: key);
+  const MainScreen({super.key});
 
   @override
-  _MainScreenState createState() => _MainScreenState();
+  MainScreenState createState() => MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
-  // [!!] '홈' 탭의 슬라이더 값(_currentMoodValue)은
-  // 이제 _HomeScreenContent 위젯 내부에서 관리합니다.
-  int _selectedIndex = 0; // '홈' 탭을 기본값으로 설정
+class MainScreenState extends State<MainScreen> {
+  int _selectedIndex = 0;
 
-  // [!!] 각 탭에 보여줄 페이지 위젯 리스트입니다.
+  // [복구] 헬스 서비스 인스턴스 및 권한 요청 변수
+  final HealthService _healthService = HealthService();
+  bool _healthPermissionRequested = false;
+
+  // 뒤로가기 버튼 두 번 클릭으로 앱 종료
+  DateTime? _lastBackPressTime;
+
+  @override
+  void initState() {
+    super.initState();
+    // [복구] 로그인 성공 시 앱 시작 단계에서 권한 요청
+    _requestHealthPermissions();
+  }
+
+  /// [복구] 앱 시작 시 모든 Health 권한을 한번에 요청하는 로직
+  Future<void> _requestHealthPermissions() async {
+    if (_healthPermissionRequested) return;
+    _healthPermissionRequested = true;
+
+    try {
+      if (Platform.isAndroid) {
+        final status = await _healthService.checkHealthConnectStatus();
+        if (status.toString().contains('unavailable')) {
+          print('Health Connect가 설치되지 않았습니다.');
+          return;
+        }
+      }
+
+      print('🔐 앱 시작: 모든 Health 권한 요청 시작...');
+      bool authorized = await _healthService.requestAuthorization();
+
+      if (authorized) {
+        print('✅ 모든 Health 권한이 허용되었습니다.');
+      } else {
+        print('⚠️ Health 권한이 거부되었습니다.');
+      }
+    } catch (e) {
+      print('❌ Health 권한 요청 실패: $e');
+    }
+  }
+
   static final List<Widget> _pages = <Widget>[
-    // 0: 홈 탭 (디자인 보존을 위해 별도 위젯으로 분리)
     const _HomeScreenContent(),
-    // 1: 상담 탭 (임시)
-    const PlaceholderTab(title: '상담'),
-    // 2: 추적 탭 (파일 1에서 만든 위젯)
-    // '추적' 탭은 자체 디자인에 맞는 AppBar가 필요합니다.
+    const AIChatScreen(),
     Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB), // 추적 탭 배경색
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFF9FAFB), // 추적 탭 배경색과 맞춤
-        elevation: 0,
-        title: Text(
-          '감정 추적',
-          style: GoogleFonts.roboto( // 폰트 통일
-            color: Colors.black87,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        centerTitle: true,
-      ),
-      body: const EmotionTrackingTab(), // '추적' 탭의 내용물
-    ),
-// [!!!] 3: 프로필 탭 수정 [!!!]
-    Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB), // (프로필 배경색)
+      backgroundColor: const Color(0xFFF9FAFB),
       appBar: AppBar(
         backgroundColor: const Color(0xFFF9FAFB),
         elevation: 0,
         title: Text(
-          '프로필', // (프로필 앱바 제목)
+          '감정 추적',
           style: GoogleFonts.roboto(
             color: Colors.black87,
             fontWeight: FontWeight.bold,
@@ -133,7 +135,23 @@ class _MainScreenState extends State<MainScreen> {
         ),
         centerTitle: true,
       ),
-      body: const ProfileTab(), // 👈 [!!] 2. PlaceholderTab을 ProfileTab으로 교체!
+      body: const EmotionTrackingTab(),
+    ),
+    Scaffold(
+      backgroundColor: const Color(0xFFF9FAFB),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFF9FAFB),
+        elevation: 0,
+        title: Text(
+          '프로필',
+          style: GoogleFonts.roboto(
+            color: Colors.black87,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        centerTitle: true,
+      ),
+      body: const ProfileTab(),
     ),
   ];
 
@@ -145,36 +163,59 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // [!!] '홈' 탭(index 0)일 때만 배경이 AppBar 뒤로 확장되도록 합니다.
-    return Scaffold(
-      extendBodyBehindAppBar: _selectedIndex == 0,
-      // [!!] '홈' 탭(index 0)일 때만 기존의 블러 AppBar를,
-      // 그 외 탭에서는 null (각자 AppBar를 갖도록)
-      appBar: _selectedIndex == 0 ? _buildHomeAppBar() : null,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
 
-      // [!!] IndexedStack을 사용하여 탭 전환 시 각 탭의 상태를 보존합니다.
-      // (예: '홈' 탭의 스크롤 위치, 슬라이더 값)
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _pages,
+        // 홈 탭이 아니면 홈 탭으로 이동
+        if (_selectedIndex != 0) {
+          setState(() {
+            _selectedIndex = 0;
+          });
+          return;
+        }
+
+        // 홈 탭에서 뒤로가기: 2초 이내 두 번 클릭 시 앱 종료
+        final now = DateTime.now();
+        if (_lastBackPressTime == null ||
+            now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+          _lastBackPressTime = now;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '한 번 더 누르면 종료됩니다',
+                style: GoogleFonts.roboto(),
+              ),
+              duration: const Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
+
+        // 2초 이내 두 번째 클릭: 앱 종료
+        SystemNavigator.pop();
+      },
+      child: Scaffold(
+        extendBodyBehindAppBar: _selectedIndex == 0,
+        appBar: _selectedIndex == 0 ? _buildHomeAppBar() : null,
+        body: IndexedStack(
+          index: _selectedIndex,
+          children: _pages,
+        ),
+        bottomNavigationBar: _buildBottomNavigationBar(),
       ),
-
-      // 하단 네비게이션 바는 기존 코드 그대로 사용합니다.
-      bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
 
-  // '홈' 탭 전용 AppBar (기존 코드와 동일)
   PreferredSizeWidget _buildHomeAppBar() {
     return PreferredSize(
       preferredSize: const Size.fromHeight(60.0),
       child: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: kColorTextSubtitle),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false, // 뒤로가기 버튼 제거
         title: Text(
           'Personal Therapy',
           style: GoogleFonts.pacifico(
@@ -205,7 +246,6 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  // 하단 네비게이션 바 (기존 코드와 동일)
   Widget _buildBottomNavigationBar() {
     return Container(
       decoration: const BoxDecoration(
@@ -252,22 +292,21 @@ class _MainScreenState extends State<MainScreen> {
 }
 
 // ---------------------------------------------------------------
-// [!!] '홈' 탭의 모든 UI와 상태를 이 위젯이 관리합니다.
+// 홈 탭 콘텐츠
 // ---------------------------------------------------------------
 class _HomeScreenContent extends StatefulWidget {
-  const _HomeScreenContent({Key? key}) : super(key: key);
+  const _HomeScreenContent({super.key});
 
   @override
   _HomeScreenContentState createState() => _HomeScreenContentState();
 }
 
 class _HomeScreenContentState extends State<_HomeScreenContent> {
-  // '홈' 탭의 슬라이더 상태를 여기서 관리
   double _currentMoodValue = 5.0;
+  final String? _currentUserId = FirebaseAuth.instance.currentUser?.uid;
 
   @override
   Widget build(BuildContext context) {
-    // 기존 MainScreen의 'body'가 이곳으로 왔습니다.
     return Stack(
       children: [
         Container(
@@ -280,12 +319,9 @@ class _HomeScreenContentState extends State<_HomeScreenContent> {
             ),
           ),
         ),
-        // AppBar 영역을 확보하기 위해 Padding을 줍니다.
         Padding(
           padding: const EdgeInsets.only(top: kToolbarHeight),
           child: SingleChildScrollView(
-            // 기존 padding 값 (상단 80px)은 AppBar가 투명하다는 전제였습니다.
-            // AppBar 높이(kToolbarHeight) + 추가 여백(80)
             padding: const EdgeInsets.fromLTRB(24.0, 80.0, 24.0, 96.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -308,18 +344,15 @@ class _HomeScreenContentState extends State<_HomeScreenContent> {
                 ),
                 const SizedBox(height: 32.0),
 
-                // '홈' 탭의 카드들 (이제 이 위젯의 메서드를 호출)
                 _buildMoodCheckCard(),
                 const SizedBox(height: 24.0),
 
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // [!!!] 2. '정신건강 진단' 카드를 InkWell로 감쌉니다. [!!!]
                     Expanded(
                       child: InkWell(
-                        // [!!] 3. 둥근 모서리 효과를 위해 추가
                         borderRadius: BorderRadius.circular(16.0),
-                        // [!!] 4. onTap 이벤트 추가
                         onTap: () {
                           Navigator.push(
                             context,
@@ -384,7 +417,16 @@ class _HomeScreenContentState extends State<_HomeScreenContent> {
                   ),
                 ),
                 const SizedBox(height: 16.0),
-                _buildTodayHealingCard(),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const HealingScreen()),
+                    );
+                  },
+                  child: _buildTodayHealingCard(),
+                ),
                 const SizedBox(height: 24.0),
 
                 _buildEmergencyCard(),
@@ -395,9 +437,6 @@ class _HomeScreenContentState extends State<_HomeScreenContent> {
       ],
     );
   }
-
-  // --- '홈' 탭 전용 헬퍼 메서드들 ---
-  // (모두 _HomeScreenContentState 안으로 이동)
 
   Widget _buildMoodCheckCard() {
     return Card(
@@ -433,10 +472,12 @@ class _HomeScreenContentState extends State<_HomeScreenContent> {
                 trackHeight: 6.0,
                 activeTrackColor: kColorMoodSliderActive,
                 inactiveTrackColor: kColorMoodSliderInactive,
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8.0),
+                thumbShape:
+                const RoundSliderThumbShape(enabledThumbRadius: 8.0),
                 thumbColor: kColorBtnPrimary,
                 overlayColor: kColorBtnPrimary.withOpacity(0.2),
-                overlayShape: const RoundSliderOverlayShape(overlayRadius: 16.0),
+                overlayShape:
+                const RoundSliderOverlayShape(overlayRadius: 16.0),
                 valueIndicatorShape: const PaddleSliderValueIndicatorShape(),
                 valueIndicatorColor: kColorBtnPrimary,
                 valueIndicatorTextStyle: GoogleFonts.roboto(
@@ -452,9 +493,9 @@ class _HomeScreenContentState extends State<_HomeScreenContent> {
                 value: _currentMoodValue,
                 label: _currentMoodValue.round().toString(),
                 onChanged: (value) {
-                  // [!!] 이 위젯(_HomeScreenContent)의 상태를 업데이트
                   setState(() {
                     _currentMoodValue = value;
+                    _isMoodSelected = true;
                   });
                 },
               ),
@@ -470,11 +511,23 @@ class _HomeScreenContentState extends State<_HomeScreenContent> {
             ),
             const SizedBox(height: 24.0),
             ElevatedButton(
-              onPressed: () {
-                // TODO: 기분 분석 로직
+              onPressed: (_currentUserId == null || !_isMoodSelected)
+                  ? null
+                  : () {
+                // [복구] 기분 분석 상세 질문 화면으로 이동하는 로직으로 복구
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => MoodDetailQuestionsScreen(
+                      moodScore: _currentMoodValue.round(),
+                      userId: _currentUserId,
+                    ),
+                  ),
+                );
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: kColorBtnPrimary,
+                disabledBackgroundColor: Colors.grey[300],
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12.0),
                 ),
@@ -483,7 +536,9 @@ class _HomeScreenContentState extends State<_HomeScreenContent> {
               child: Text(
                 kTexts['mood_analyze_button']!,
                 style: GoogleFonts.roboto(
-                  color: Colors.white,
+                  color: (_currentUserId == null || !_isMoodSelected)
+                      ? Colors.grey[600]
+                      : Colors.white,
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                 ),
@@ -554,7 +609,7 @@ class _HomeScreenContentState extends State<_HomeScreenContent> {
                 borderRadius:
                 const BorderRadius.vertical(top: Radius.circular(16.0)),
                 child: Image.network(
-                  'https://placehold.co/600x300/E0E7FF/1F2937?text=Video+Thumbnail', // Placeholder 이미지
+                  'https://placehold.co/600x300/E0E7FF/1F2937?text=Video+Thumbnail',
                   height: 200,
                   width: double.infinity,
                   fit: BoxFit.cover,
@@ -689,4 +744,4 @@ class _HomeScreenContentState extends State<_HomeScreenContent> {
       ),
     );
   }
-} // [!!] _HomeScreenContentState 끝
+}

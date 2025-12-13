@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+// import 'package:untitled/main_screen.dart'; // Import main_screen.dart for kPrimaryGreen (REMOVED)
 
 // --- Color Definitions (Same as before) ---
 const Color kColorBgStart = Color(0xFFEFF6FF);
@@ -17,15 +19,17 @@ const Color kColorHelpCardBg = Color(0xFFF3F4FF);
 const Color kColorIconBg = Color(0xFFE0E7FF);
 
 class ForgotPasswordScreen extends StatefulWidget {
-  const ForgotPasswordScreen({Key? key}) : super(key: key);
+  const ForgotPasswordScreen({super.key});
 
   @override
-  _ForgotPasswordScreenState createState() => _ForgotPasswordScreenState();
+  ForgotPasswordScreenState createState() => ForgotPasswordScreenState();
 }
 
-class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
+class ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _emailController = TextEditingController();
   String? _emailError;
+  bool _isLoading = false; // Add loading state
+  String? _successMessage; // Add success message state
 
   @override
   void dispose() {
@@ -33,23 +37,47 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     super.dispose();
   }
 
-  void _validateAndSend() {
+  Future<void> _validateAndSend() async {
     setState(() {
       _emailError = null;
+      _successMessage = null; // Clear previous success message
+      _isLoading = true;
     });
 
-    final email = _emailController.text;
+    final email = _emailController.text.trim();
 
     if (email.isEmpty || !email.contains('@')) {
-      setState(() => _emailError = "유효한 이메일을 입력해주세요");
+      setState(() {
+        _emailError = "유효한 이메일을 입력해주세요";
+        _isLoading = false;
+      });
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('재설정 링크를 보냈습니다 (기능 구현 전)')),
-    );
-
-    Navigator.pop(context);
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      setState(() {
+        _successMessage = "재설정 링크를 이메일로 보냈습니다.";
+      });
+      // Optionally navigate back after showing success
+      // if (mounted) {
+      //   Navigator.pop(context);
+      // }
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        setState(() => _emailError = '등록되지 않은 이메일입니다.');
+      } else if (e.code == 'invalid-email') {
+        setState(() => _emailError = '유효하지 않은 이메일 형식입니다.');
+      } else {
+        setState(() => _emailError = '비밀번호 재설정 실패: ${e.message}');
+      }
+    } catch (e) {
+      setState(() => _emailError = '알 수 없는 오류가 발생했습니다: $e');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -66,7 +94,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: kColorTextTitle),
-          onPressed: () => Navigator.pop(context),
+          onPressed: _isLoading ? null : () => Navigator.pop(context), // Disable back button when loading
         ),
 
         // 1. LoginScreen과 동일한 폰트 및 크기로 변경
@@ -169,7 +197,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             ),
             const SizedBox(height: 24.0),
             ElevatedButton(
-              onPressed: _validateAndSend,
+              onPressed: _isLoading ? null : _validateAndSend,
               style: ElevatedButton.styleFrom(
                 backgroundColor: kColorBtnPrimary,
                 shape: RoundedRectangleBorder(
@@ -177,7 +205,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ),
                 minimumSize: const Size(double.infinity, 45),
               ),
-              child: Text(
+              child: _isLoading
+                  ? const SizedBox(
+                height: 24.0,
+                width: 24.0,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2.0,
+                ),
+              )
+                  : Text(
                 '재설정 링크 보내기',
                 style: GoogleFonts.roboto(
                   color: Colors.white,
@@ -186,6 +223,19 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ),
               ),
             ),
+            if (_successMessage != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 16.0),
+                child: Text(
+                  _successMessage!,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.roboto(
+                    color: Colors.green, // Use a green color for success messages
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
           ],
         ),
       ),

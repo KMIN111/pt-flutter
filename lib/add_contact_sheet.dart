@@ -17,16 +17,16 @@ class AddContactBottomSheet extends StatefulWidget {
   final Function(String name, String phone, String tag) onSave;
 
   const AddContactBottomSheet({
-    Key? key,
+    super.key,
     this.contact,
     required this.onSave, // [!!] onSave 콜백을 필수로 받음
-  }) : super(key: key);
+  });
 
   @override
-  _AddContactBottomSheetState createState() => _AddContactBottomSheetState();
+  AddContactBottomSheetState createState() => AddContactBottomSheetState();
 }
 
-class _AddContactBottomSheetState extends State<AddContactBottomSheet> {
+class AddContactBottomSheetState extends State<AddContactBottomSheet> {
   // [!!] 5. TextField를 제어하기 위한 컨트롤러
   late TextEditingController _nameController;
   late TextEditingController _phoneController;
@@ -184,13 +184,6 @@ class _AddContactBottomSheetState extends State<AddContactBottomSheet> {
   }) {
     return ElevatedButton(
       onPressed: onPressed,
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
       style: ElevatedButton.styleFrom(
         backgroundColor: isPrimary ? kPrimaryBlue : kEditTextBg,
         foregroundColor: isPrimary ? Colors.white : kTextSecondary,
@@ -199,6 +192,13 @@ class _AddContactBottomSheetState extends State<AddContactBottomSheet> {
           borderRadius: BorderRadius.circular(12.0),
         ),
         padding: EdgeInsets.symmetric(vertical: 12),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
       ),
     );
   }
