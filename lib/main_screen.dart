@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:ui';
 import 'dart:io'; // Platform detection
 import 'package:google_fonts/google_fonts.dart';
@@ -77,6 +78,9 @@ class MainScreenState extends State<MainScreen> {
   // [복구] 헬스 서비스 인스턴스 및 권한 요청 변수
   final HealthService _healthService = HealthService();
   bool _healthPermissionRequested = false;
+
+  // 뒤로가기 버튼 두 번 클릭으로 앱 종료
+  DateTime? _lastBackPressTime;
 
   @override
   void initState() {
@@ -157,14 +161,49 @@ class MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBodyBehindAppBar: _selectedIndex == 0,
-      appBar: _selectedIndex == 0 ? _buildHomeAppBar() : null,
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _pages,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+
+        // 홈 탭이 아니면 홈 탭으로 이동
+        if (_selectedIndex != 0) {
+          setState(() {
+            _selectedIndex = 0;
+          });
+          return;
+        }
+
+        // 홈 탭에서 뒤로가기: 2초 이내 두 번 클릭 시 앱 종료
+        final now = DateTime.now();
+        if (_lastBackPressTime == null ||
+            now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+          _lastBackPressTime = now;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '한 번 더 누르면 종료됩니다',
+                style: GoogleFonts.roboto(),
+              ),
+              duration: const Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
+
+        // 2초 이내 두 번째 클릭: 앱 종료
+        SystemNavigator.pop();
+      },
+      child: Scaffold(
+        extendBodyBehindAppBar: _selectedIndex == 0,
+        appBar: _selectedIndex == 0 ? _buildHomeAppBar() : null,
+        body: IndexedStack(
+          index: _selectedIndex,
+          children: _pages,
+        ),
+        bottomNavigationBar: _buildBottomNavigationBar(),
       ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
 
@@ -174,10 +213,7 @@ class MainScreenState extends State<MainScreen> {
       child: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: kColorTextSubtitle),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false, // 뒤로가기 버튼 제거
         title: Text(
           'Personal Therapy',
           style: GoogleFonts.pacifico(
@@ -310,32 +346,30 @@ class _HomeScreenContentState extends State<_HomeScreenContent> {
                 const SizedBox(height: 24.0),
 
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: SizedBox(
-                        height: 190,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(16.0),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const DiagnosisScreen(),
-                              ),
-                            );
-                          },
-                          child: _buildSmallFeatureCard(
-                            iconWidget: Image.asset(
-                              'assets/images/heart_pulse_icon.png',
-                              width: 48.0,
-                              height: 48.0,
-                              errorBuilder: (context, error, stackTrace) =>
-                              const Icon(Icons.error_outline,
-                                  color: kColorError, size: 48.0),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16.0),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const DiagnosisScreen(),
                             ),
-                            title: kTexts['mental_health_title']!,
-                            subtitle: kTexts['mental_health_subtitle']!,
+                          );
+                        },
+                        child: _buildSmallFeatureCard(
+                          iconWidget: Image.asset(
+                            'assets/images/heart_pulse_icon.png',
+                            width: 48.0,
+                            height: 48.0,
+                            errorBuilder: (context, error, stackTrace) =>
+                            const Icon(Icons.error_outline,
+                                color: kColorError, size: 48.0),
                           ),
+                          title: kTexts['mental_health_title']!,
+                          subtitle: kTexts['mental_health_subtitle']!,
                         ),
                       ),
                     ),
