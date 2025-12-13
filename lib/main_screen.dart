@@ -3,7 +3,8 @@ import 'package:flutter/services.dart';
 import 'dart:ui';
 import 'dart:io'; // Platform detection
 import 'package:google_fonts/google_fonts.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:untitled/profile_tab.dart';
+import 'package:untitled/wearable_device_screen.dart';
 
 // [!!] 파일 임포트 복구
 import 'package:untitled/wearable_device_screen.dart'; // 웨어러블 화면
@@ -48,9 +49,10 @@ final Map<String, String> kTexts = {
   'mood_analyze_button': '기분 분석하기',
   'mental_health_title': '정신건강 진단',
   'mental_health_subtitle': '전문적인 심리 상태\n체크',
-  // [복구] 웨어러블 텍스트로 원복
-  'wearable_device_title': '웨어러블 기기 연동',
-  'wearable_device_subtitle': '활동, 수면, 심박수\n데이터 연동',
+  // 'healing_content_title': '힐링 콘텐츠', // (제거됨)
+  // 'healing_content_subtitle': '맞춤형 치유\n콘텐츠', // (제거됨)
+  'wearable_device_title': '웨어러블 기기 연동', // [!!] 2.1 추가
+  'wearable_device_subtitle': '활동, 수면, 심박수\n데이터 연동', // [!!] 2.2 추가
   'today_healing_title': '오늘의 힐링',
   'today_healing_video_title': '5분 명상으로 마음 정리하기',
   'today_healing_video_description': '스트레스를 줄이고 마음의 평화를 찾는 간단한 명상법을 배워보세요.',
@@ -373,11 +375,12 @@ class _HomeScreenContentState extends State<_HomeScreenContent> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 16.0),
-                    // [복구] 힐링 콘텐츠 -> 웨어러블 기기 카드로 복구
+                    const SizedBox(width: 5.0),
+// [!!!] 2. '힐링 콘텐츠' 카드를 InkWell로 감쌉니다. [!!!]
+                    // [!!!] 3. '힐링 콘텐츠' 카드를 '웨어러블 기기'로 수정 [!!!]
                     Expanded(
                       child: InkWell(
-                        // 웨어러블 스크린으로 이동
+                        // [!!] 3.1 힐링 스크린 -> 웨어러블 스크린으로 이동
                         onTap: () {
                           Navigator.push(
                             context,
@@ -386,10 +389,16 @@ class _HomeScreenContentState extends State<_HomeScreenContent> {
                         },
                         borderRadius: BorderRadius.circular(16.0),
                         child: _buildSmallFeatureCard(
-                          // 아이콘 변경 (시계 아이콘)
-                          iconWidget: const Icon(Icons.watch,
-                              color: kColorBtnPrimary, size: 48.0),
-                          // 텍스트 키 변경
+                          // [!!] 3.2 아이콘 변경 (시계 아이콘 예시)
+                          iconWidget: Image.asset(
+                            'assets/images/icon_watch.png', // 👈 이 경로는 예시입니다.
+                            width: 30.0,
+                            height: 30.0,
+                            errorBuilder: (context, error, stackTrace) =>
+                            const Icon(Icons.watch, // 👈 대체 아이콘
+                                color: kColorError, size: 48.0),
+                          ),
+                          // [!!] 3.3 텍스트 키 변경
                           title: kTexts['wearable_device_title']!,
                           subtitle: kTexts['wearable_device_subtitle']!,
                         ),
