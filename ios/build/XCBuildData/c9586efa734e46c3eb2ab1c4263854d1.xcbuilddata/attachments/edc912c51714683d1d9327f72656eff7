@@ -1,5 +1,0 @@
-
-module health.Swift {
-  header "health-Swift.h"
-  requires objc
-}

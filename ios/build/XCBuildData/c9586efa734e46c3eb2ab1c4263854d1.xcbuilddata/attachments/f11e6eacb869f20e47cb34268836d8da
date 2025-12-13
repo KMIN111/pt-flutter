@@ -1,4 +1,0 @@
-
-module health.__Swift {
-  exclude header "health-Swift.h"
-}
