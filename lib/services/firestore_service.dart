@@ -419,4 +419,57 @@ class FirestoreService {
         .snapshots()
         .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
   }
+
+  // ==================== 채팅 메시지 저장/불러오기 ====================
+
+  /// 채팅 메시지 저장
+  Future<void> saveChatMessage({
+    required String uid,
+    required String text,
+    required bool isUser,
+    Map<String, dynamic>? emotionAnalysis,
+  }) async {
+    await _db.collection('users').doc(uid).collection('chat_messages').add({
+      'text': text,
+      'isUser': isUser,
+      'timestamp': FieldValue.serverTimestamp(),
+      if (emotionAnalysis != null) 'emotionAnalysis': emotionAnalysis,
+    });
+  }
+
+  /// 채팅 메시지 불러오기 (시간순 정렬)
+  Future<List<Map<String, dynamic>>> getChatMessages(String uid) async {
+    final snapshot = await _db
+        .collection('users')
+        .doc(uid)
+        .collection('chat_messages')
+        .orderBy('timestamp', descending: false)
+        .get();
+
+    return snapshot.docs.map((doc) => doc.data()).toList();
+  }
+
+  /// 채팅 메시지 스트림 (실시간 업데이트용)
+  Stream<List<Map<String, dynamic>>> getChatMessagesStream(String uid) {
+    return _db
+        .collection('users')
+        .doc(uid)
+        .collection('chat_messages')
+        .orderBy('timestamp', descending: false)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
+  }
+
+  /// 모든 채팅 메시지 삭제 (새 대화 시작용)
+  Future<void> clearChatMessages(String uid) async {
+    final snapshot = await _db
+        .collection('users')
+        .doc(uid)
+        .collection('chat_messages')
+        .get();
+
+    for (var doc in snapshot.docs) {
+      await doc.reference.delete();
+    }
+  }
 }

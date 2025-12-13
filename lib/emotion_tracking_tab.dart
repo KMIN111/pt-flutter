@@ -148,7 +148,7 @@ class EmotionTrackingTabState extends State<EmotionTrackingTab> {
     );
   }
 
-  /// 오늘의 상태 카드 (스트레스, 건강 점수, 수면 시간)
+  /// 오늘의 상태 카드 (건강 점수, 수면 시간)
   Widget _buildDailyStatusCard() {
     return Container(
       padding: const EdgeInsets.all(24.0),
@@ -166,23 +166,22 @@ class EmotionTrackingTabState extends State<EmotionTrackingTab> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // [1] 스트레스 (기존 유지)
+                // [1] 건강 점수 - Firebase에서 overallScore 가져옴
                 _buildStreamedStatusItem(
-                  stream: _firestoreService.getMoodScoresStream(_currentUserId!),
-                  label: '스트레스',
-                  valueColor: const Color(0xFF1F2937),
-                  timePeriod: 'daily',
-                  scoreExtractor: (data) => (data['score'] as num?)?.toDouble() ?? 0.0,
-                  isStress: true,
-                ),
-                // [2] 건강 점수 (수정됨!) -> 종합 점수(overallScore)를 가져오도록 변경
-                _buildStreamedStatusItem(
-                  stream: _firestoreService.getDailyMentalStatusListStream(_currentUserId!), // [변경]
-                  label: '종합 건강 점수', // [변경] 라벨을 명확하게
+                  stream: _firestoreService.getDailyMentalStatusListStream(_currentUserId!),
+                  label: '종합 건강 점수',
                   valueColor: const Color(0xFF2563EB),
                   timePeriod: 'daily',
-                  // [변경] 'overallScore' 필드를 읽도록 수정
                   scoreExtractor: (data) => (data['overallScore'] as num?)?.toDouble() ?? 0.0,
+                ),
+                // [2] 수면 시간 - Firebase에서 가져옴
+                _buildStreamedStatusItem(
+                  stream: _firestoreService.getSleepScoresStream(_currentUserId!),
+                  label: '수면 시간',
+                  valueColor: const Color(0xFF9333EA),
+                  timePeriod: 'daily',
+                  scoreExtractor: (data) => (data['duration'] as num?)?.toDouble() ?? 0.0,
+                  unit: 'h',
                 ),
               ],
             )
@@ -330,7 +329,7 @@ class EmotionTrackingTabState extends State<EmotionTrackingTab> {
     );
   }
 
-  /// 주간 변화 추이 카드 (스트레스 지수, 건강 점수, 수면 시간)
+  /// 주간 변화 추이 카드 (건강 점수, 수면 시간)
   Widget _buildDailyTrendsCard() {
     return Container(
       padding: const EdgeInsets.all(24.0),
@@ -358,8 +357,6 @@ class EmotionTrackingTabState extends State<EmotionTrackingTab> {
           ),
           const SizedBox(height: 24.0),
           if (_currentUserId != null) ...[
-            _buildWeeklyMetricChart('스트레스 지수', const Color(0xFFEF4444), _firestoreService.getMoodScoresStream(_currentUserId!)),
-            const SizedBox(height: 24.0),
             _buildWeeklyMetricChart('건강 점수', const Color(0xFF3B82F6), _firestoreService.getMentalHealthScoresStream(_currentUserId!)),
             const SizedBox(height: 24.0),
             _buildWeeklyMetricChart('수면 시간', const Color(0xFFA855F7), _buildSleepDataStream(), dataField: 'duration', isSleepData: true),
@@ -367,12 +364,6 @@ class EmotionTrackingTabState extends State<EmotionTrackingTab> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildAverageSummaryItem(
-                    '평균 스트레스',
-                    _firestoreService.getMoodScoresStream(_currentUserId!),
-                    (data) => (data['score'] as num).toDouble(),
-                    '',
-                  ),
                 _buildAverageSummaryItem(
                     '평균 건강점수',
                     _firestoreService.getMentalHealthScoresStream(_currentUserId!),
@@ -513,32 +504,23 @@ class EmotionTrackingTabState extends State<EmotionTrackingTab> {
         children: [
           Text('이번 주 상태', style: GoogleFonts.roboto(fontWeight: FontWeight.w600, fontSize: 18, color: const Color(0xFF1F2937),)),
           const SizedBox(height: 16.0),
-          if (_currentUserId != null)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // [1] 스트레스 (기존 유지)
-                _buildStreamedStatusItem(
-                  stream: _firestoreService.getMoodScoresStream(_currentUserId!),
-                  label: '평균 스트레스',
-                  valueColor: const Color(0xFF1F2937),
-                  timePeriod: 'weekly',
-                  scoreExtractor: (data) => (data['score'] as num?)?.toDouble() ?? 0.0,
-                  isStress: true,
-                ),
-                // [2] 건강 점수 (수정됨!)
-                _buildStreamedStatusItem(
-                  stream: _firestoreService.getDailyMentalStatusListStream(_currentUserId!), // [변경]
-                  label: '평균 건강 점수',
-                  valueColor: const Color(0xFF2563EB),
-                  timePeriod: 'weekly',
-                  // [변경] 'overallScore' 필드를 읽도록 수정
-                  scoreExtractor: (data) => (data['overallScore'] as num?)?.toDouble() ?? 0.0,
-                ),
-              ],
-            )
-          else
-            const Center(child: Text('로그인이 필요합니다.')),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // [1] 건강 점수 (하드코딩)
+              _buildHardcodedStatusItem(
+                label: '평균 건강 점수',
+                value: '72',
+                valueColor: const Color(0xFF2563EB),
+              ),
+              // [2] 수면 시간 (하드코딩)
+              _buildHardcodedStatusItem(
+                label: '평균 수면 시간',
+                value: '7.1h',
+                valueColor: const Color(0xFF9333EA),
+              ),
+            ],
+          ),
           const SizedBox(height: 24.0),
           Text('평균 감정 분포', style: GoogleFonts.roboto(fontWeight: FontWeight.w500, fontSize: 14, color: const Color(0xFF1F2937),)),
           const SizedBox(height: 12.0),
@@ -588,10 +570,12 @@ class EmotionTrackingTabState extends State<EmotionTrackingTab> {
             final startOfDay = DateTime(now.year, now.month, now.day);
             final endOfDay = startOfDay.add(const Duration(days: 1));
             filteredData = data.where((item) {
-              final ts = item['timestamp'];
-              if (ts == null || ts is! Timestamp) return false;  // ✅ null 체크
+              // timestamp 또는 lastUpdated 필드 확인
+              final ts = item['timestamp'] ?? item['lastUpdated'];
+              if (ts == null || ts is! Timestamp) return false;
               final timestamp = ts.toDate();
-              return timestamp.isAfter(startOfDay) && timestamp.isBefore(endOfDay);
+              // isAfter 대신 !isBefore 사용 (자정 포함)
+              return !timestamp.isBefore(startOfDay) && timestamp.isBefore(endOfDay);
             }).toList();
             break;
           case 'weekly':
@@ -719,6 +703,64 @@ class EmotionTrackingTabState extends State<EmotionTrackingTab> {
     );
 }
 
+  /// 하드코딩된 상태 아이템 (주간/월간용)
+  Widget _buildHardcodedStatusItem({
+    required String label,
+    required String value,
+    required Color valueColor,
+    String? tag,
+    Color? tagColor,
+    Color? tagBgColor,
+  }) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          if (tag != null) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: tagBgColor,
+                borderRadius: BorderRadius.circular(9999),
+              ),
+              child: Text(
+                tag,
+                style: GoogleFonts.roboto(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: tagColor,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(height: 4),
+          ],
+          Text(
+            value,
+            style: GoogleFonts.roboto(
+              fontSize: tag == null ? 23 : 18,
+              fontWeight: FontWeight.w700,
+              color: valueColor,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: GoogleFonts.roboto(
+              fontSize: 12,
+              fontWeight: FontWeight.w400,
+              color: const Color(0xFF6B7280),
+            ),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 2,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildEmotionProgress(String label, double value, Color color, String percentage) {
     return Row(
       children: [
@@ -810,8 +852,6 @@ class EmotionTrackingTabState extends State<EmotionTrackingTab> {
           ),
           const SizedBox(height: 24.0),
           if (_currentUserId != null) ...[
-            _buildWeeklyMetricChart('스트레스 지수', const Color(0xFFEF4444), _firestoreService.getMoodScoresStream(_currentUserId!)),
-            const SizedBox(height: 24.0),
             _buildWeeklyMetricChart('건강 점수', const Color(0xFF3B82F6), _firestoreService.getMentalHealthScoresStream(_currentUserId!)),
             const SizedBox(height: 24.0),
             _buildWeeklyMetricChart('수면 시간', const Color(0xFFA855F7), _buildSleepDataStream(), dataField: 'duration', isSleepData: true),
@@ -820,21 +860,15 @@ class EmotionTrackingTabState extends State<EmotionTrackingTab> {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildAverageSummaryItem(
-                  '평균 스트레스',
-                  _firestoreService.getMoodScoresStream(_currentUserId!),
-                      (data) => (data['score'] as num?)?.toDouble() ?? 0.0,  // ✅
-                  '',
-                ),
-                _buildAverageSummaryItem(
                   '평균 건강점수',
                   _firestoreService.getMentalHealthScoresStream(_currentUserId!),
-                      (data) => (data['score'] as num?)?.toDouble() ?? 0.0,  // ✅
+                      (data) => (data['score'] as num?)?.toDouble() ?? 0.0,
                   '',
                 ),
                 _buildAverageSummaryItem(
                   '평균 수면',
                   _firestoreService.getSleepScoresStream(_currentUserId!),
-                      (data) => (data['duration'] as num?)?.toDouble() ?? 0.0,  // ✅
+                      (data) => (data['duration'] as num?)?.toDouble() ?? 0.0,
                   'h',
                 ),
               ],
@@ -1412,41 +1446,23 @@ Widget _buildWeeklyMetricChart(String title, Color color, Stream<List<Map<String
         children: [
           Text('이번 달 상태', style: GoogleFonts.roboto(fontWeight: FontWeight.w600, fontSize: 18, color: const Color(0xFF1F2937),)),
           const SizedBox(height: 16.0),
-          if (_currentUserId != null)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // [1] 스트레스 (기존 유지)
-                _buildStreamedStatusItem(
-                  stream: _firestoreService.getMoodScoresStream(_currentUserId!),
-                  label: '스트레스',
-                  valueColor: const Color(0xFF1F2937),
-                  timePeriod: 'monthly',
-                  scoreExtractor: (data) => (data['score'] as num?)?.toDouble() ?? 0.0,
-                  isStress: true,
-                ),
-                // [2] 건강 점수 (수정됨!)
-                _buildStreamedStatusItem(
-                  stream: _firestoreService.getDailyMentalStatusListStream(_currentUserId!), // [변경]
-                  label: '건강 점수',
-                  valueColor: const Color(0xFF2563EB),
-                  timePeriod: 'monthly',
-                  // [변경] 'overallScore' 필드를 읽도록 수정
-                  scoreExtractor: (data) => (data['overallScore'] as num?)?.toDouble() ?? 0.0,
-                ),
-                // [3] 수면 시간 (기존 유지)
-                _buildStreamedStatusItem(
-                  stream: _firestoreService.getSleepScoresStream(_currentUserId!),
-                  label: '수면 시간',
-                  valueColor: const Color(0xFF9333EA),
-                  timePeriod: 'monthly',
-                  scoreExtractor: (data) => (data['duration'] as num?)?.toDouble() ?? 0.0,
-                  unit: 'h',
-                ),
-              ],
-            )
-          else
-            const Center(child: Text('로그인이 필요합니다.')),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // [1] 건강 점수 (하드코딩)
+              _buildHardcodedStatusItem(
+                label: '건강 점수',
+                value: '78',
+                valueColor: const Color(0xFF2563EB),
+              ),
+              // [2] 수면 시간 (하드코딩)
+              _buildHardcodedStatusItem(
+                label: '수면 시간',
+                value: '7.2h',
+                valueColor: const Color(0xFF9333EA),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -1518,26 +1534,104 @@ Widget _buildWeeklyMetricChart(String title, Color color, Stream<List<Map<String
             ),
           ),
           const SizedBox(height: 24.0),
-          _buildMonthlyMetricChartWithStream(
-            '스트레스',
-            const Color(0xFFCA8A04),
-            _firestoreService.getMoodScoresStream(_currentUserId!),
-          ),
-          const SizedBox(height: 24.0),
-          _buildMonthlyMetricChartWithStream(
+          // 하드코딩된 월간 차트
+          _buildHardcodedMonthlyChart(
             '건강 점수',
             const Color(0xFF2563EB),
-            _firestoreService.getMentalHealthScoresStream(_currentUserId!),
+            [72.0, 75.0, 80.0, 78.0], // 주차별 하드코딩 데이터
           ),
           const SizedBox(height: 24.0),
-          _buildMonthlyMetricChartWithStream(
+          _buildHardcodedMonthlyChart(
             '수면 시간',
             const Color(0xFF9333EA),
-            _firestoreService.getSleepScoresStream(_currentUserId!),
-            dataField: 'duration',
+            [6.8, 7.2, 7.5, 7.0], // 주차별 하드코딩 데이터
+            isSleepData: true,
           ),
         ],
       ),
+    );
+  }
+
+  /// 하드코딩된 월간 차트 위젯
+  Widget _buildHardcodedMonthlyChart(String title, Color color, List<double> weeklyData, {bool isSleepData = false}) {
+    final maxValue = weeklyData.reduce((a, b) => a > b ? a : b);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: GoogleFonts.roboto(
+            fontWeight: FontWeight.w500,
+            fontSize: 14,
+            color: const Color(0xFF1F2937),
+          ),
+        ),
+        const SizedBox(height: 12.0),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: List.generate(weeklyData.length, (index) {
+            final value = weeklyData[index];
+            final heightRatio = maxValue > 0 ? value / maxValue : 0.0;
+            final height = 80.0 * heightRatio;
+
+            final valueText = isSleepData
+                ? '${value.toStringAsFixed(1)}h'
+                : value.toStringAsFixed(0);
+
+            return Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(right: index < weeklyData.length - 1 ? 8.0 : 0),
+                child: Column(
+                  children: [
+                    // 수치 표시
+                    SizedBox(
+                      height: 20,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: color.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          valueText,
+                          style: GoogleFonts.roboto(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: color,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    // 막대 그래프
+                    Container(
+                      height: 80,
+                      alignment: Alignment.bottomCenter,
+                      child: Container(
+                        height: height > 0 ? height : 4,
+                        decoration: BoxDecoration(
+                          color: color,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // 주차 레이블
+                    Text(
+                      '${index + 1}주차',
+                      style: GoogleFonts.roboto(
+                        fontSize: 12,
+                        color: const Color(0xFF6B7280),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ),
+      ],
     );
   }
 
