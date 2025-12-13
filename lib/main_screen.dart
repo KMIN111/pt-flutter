@@ -5,6 +5,7 @@ import 'dart:io'; // Platform detection
 import 'package:google_fonts/google_fonts.dart';
 import 'package:untitled/profile_tab.dart';
 import 'package:untitled/wearable_device_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 // [!!] 파일 임포트 복구
 import 'package:untitled/wearable_device_screen.dart'; // 웨어러블 화면
