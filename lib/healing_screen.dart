@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'services/healing_recommendation_service.dart';
 import 'package:untitled/services/firestore_service.dart';
-
+import 'dart:async';
 
 const Color kColorBg = Color(0xFFF9FAFB);
 const Color kColorTextTitle = Color(0xFF1F2937);
@@ -22,29 +22,60 @@ class HealingScreen extends StatefulWidget {
 class _HealingScreenState extends State<HealingScreen> {
   int _selectedToggleIndex = 0; // 0: 전체, 1: 명상, 2: 수면, 3: ASMR
   final HealingRecommendationService _healingService = HealingRecommendationService();
+  final FirestoreService _firestoreService = FirestoreService();
 
   bool _loading = true;
   List<Map<String, String>> _videos = [];
   int _userScore = 65; // 기본값
   String? _error;
 
+  StreamSubscription? _scoreSubscription;
+  final String? _uid = FirebaseAuth.instance.currentUser?.uid;
+
   @override
   void initState() {
     super.initState();
-    _initializeScore();
+    _initializeScoreListener();
   }
 
-  Future<void> _initializeScore() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid != null) {
-      final firestoreScore = await FirestoreService().getTodayOverallScore(uid);
-      if (firestoreScore != null) {
-        _userScore = firestoreScore;
-      }
-    }
-    print('[HealingScreen] 사용자 점수: $_userScore');
-    _loadVideos();
+  @override
+  void dispose() {
+    _scoreSubscription?.cancel();
+    super.dispose();
   }
+
+  void _initializeScoreListener() {
+    if (_uid == null) {
+      _loadVideos();
+      return;
+    }
+
+    // Firestore Stream으로 점수 실시간 감지
+    _scoreSubscription = _firestoreService
+        .getDailyMentalStatusStream(_uid!, DateTime.now())
+        .listen((data) {
+      if (data != null && data['overallScore'] != null) {
+        final newScore = (data['overallScore'] as num).round();
+
+        // 점수가 변경되었을 때만 영상 다시 로드
+        if (newScore != _userScore) {
+          print('[HealingScreen] 🔄 점수 변경 감지: $_userScore → $newScore');
+          setState(() {
+            _userScore = newScore;
+          });
+          _loadVideos(); // 점수 변경 시 자동으로 영상 다시 로드
+        }
+      } else {
+        // 점수가 없으면 기본값으로 로드
+        print('[HealingScreen] ℹ️ 점수 없음, 기본값 사용: $_userScore');
+        _loadVideos();
+      }
+    }, onError: (error) {
+      print('[HealingScreen] ❌ 점수 스트림 오류: $error');
+      _loadVideos(); // 오류 발생 시에도 기본값으로 로드
+    });
+  }
+
   Future<void> _loadVideos() async {
     setState(() {
       _loading = true;
@@ -56,14 +87,14 @@ class _HealingScreenState extends State<HealingScreen> {
 
       switch (_selectedToggleIndex) {
         case 0: // 전체
-          print('[HealingScreen] 전체 추천 로딩...');
+          print('[HealingScreen] 📊 전체 추천 로딩 (점수: $_userScore)...');
           fetched = await _healingService.getHealingRecommendations(
             userScore: _userScore,
             totalResults: 10,
           );
           break;
         case 1: // 명상
-          print('[HealingScreen] 명상 카테고리 로딩...');
+          print('[HealingScreen] 🧘 명상 카테고리 로딩 (점수: $_userScore)...');
           fetched = await _healingService.getVideosByCategory(
             category: '명상',
             userScore: _userScore,
@@ -71,7 +102,7 @@ class _HealingScreenState extends State<HealingScreen> {
           );
           break;
         case 2: // 수면
-          print('[HealingScreen] 수면 카테고리 로딩...');
+          print('[HealingScreen] 😴 수면 카테고리 로딩 (점수: $_userScore)...');
           fetched = await _healingService.getVideosByCategory(
             category: '수면',
             userScore: _userScore,
@@ -79,7 +110,7 @@ class _HealingScreenState extends State<HealingScreen> {
           );
           break;
         case 3: // ASMR
-          print('[HealingScreen] ASMR 카테고리 로딩...');
+          print('[HealingScreen] 🎧 ASMR 카테고리 로딩 (점수: $_userScore)...');
           fetched = await _healingService.getVideosByCategory(
             category: 'ASMR',
             userScore: _userScore,
@@ -102,7 +133,6 @@ class _HealingScreenState extends State<HealingScreen> {
       });
     }
   }
-
 
   void _onToggle(int index) {
     if (_selectedToggleIndex == index) return;
