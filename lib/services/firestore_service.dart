@@ -142,16 +142,54 @@ class FirestoreService {
     );
   }
 
-  // [신규] 생체 데이터 기반 스트레스 점수 저장 및 집계 업데이트
-  Future<void> updateBiometricStress(String uid, int stressScore) async {
+  // [수정] 생체 데이터 기반 생체리듬 점수 저장 (HRV 기반)
+  // stressScore 대신 biorhythmScore로 변경, nullable 지원
+  Future<void> updateBiometricScore(
+      String uid, {
+        int? biorhythmScore,  // HRV 기반 생체리듬 점수 (0-100, 높을수록 좋음)
+        double? hrvValue,     // 원본 HRV RMSSD 값 (ms)
+        int? heartRate,       // 원본 심박수
+      }) async {
+    // 점수가 null이면 저장하지 않음 (데이터 없는 경우)
+    if (biorhythmScore == null) {
+      print('⚠️ 생체리듬 점수가 null - 저장 건너뜀');
+      return;
+    }
+
     await _db.collection('users').doc(uid).collection('biometric_scores').add({
-      'score': stressScore,
+      'score': biorhythmScore,
+      'hrvRmssd': hrvValue,       // 원본 HRV 값 저장 (디버깅/분석용)
+      'heartRate': heartRate,     // 원본 심박수 저장
       'timestamp': FieldValue.serverTimestamp(),
     });
 
     await updateDailyMentalStatus(
       uid: uid,
-      biometricStressScore: stressScore,
+      biometricStressScore: biorhythmScore,
+    );
+  }
+
+  // [레거시 호환] 기존 updateBiometricStress 함수 유지 (하위 호환성)
+  @Deprecated('Use updateBiometricScore instead')
+  Future<void> updateBiometricStress(String uid, int stressScore) async {
+    // 스트레스 점수를 건강 점수로 변환 (100 - 스트레스)
+    // 단, 0이면 데이터 없는 것으로 간주하고 저장하지 않음
+    if (stressScore == 0) {
+      print('⚠️ 스트레스 점수 0 - 데이터 없음으로 간주, 저장 건너뜀');
+      return;
+    }
+
+    final healthScore = (100 - stressScore).clamp(0, 100);
+
+    await _db.collection('users').doc(uid).collection('biometric_scores').add({
+      'score': healthScore,
+      'originalStress': stressScore,  // 원본 스트레스 값 보존
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+
+    await updateDailyMentalStatus(
+      uid: uid,
+      biometricStressScore: healthScore,
     );
   }
 
