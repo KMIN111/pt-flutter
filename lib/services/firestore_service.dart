@@ -483,6 +483,8 @@ class FirestoreService {
     if (score is num) return score.round();
 
     return null;
+  }
+
   // ==================== 채팅 메시지 저장/불러오기 ====================
 
   /// 채팅 메시지 저장
