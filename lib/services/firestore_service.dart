@@ -293,6 +293,9 @@ class FirestoreService {
     // -----------------------------------------------------------------------
     // D. Firestore 저장
     // -----------------------------------------------------------------------
+    // -----------------------------------------------------------------------
+    // D. Firestore 저장
+    // -----------------------------------------------------------------------
     await docRef.set({
       'date': dateKey,
       'overallScore': finalOverallScore,
@@ -300,11 +303,13 @@ class FirestoreService {
         'selfDiagnosis': selfDiagMap,
         'dailyEmotion': {
           'moodCheck': currentMood,
-          // [중요] 나중에 읽을 때를 대비해 AI 점수는 항상 Map 구조로 통일해서 저장
           'aiConversation': currentAi != null ? {'average': currentAi} : null,
         },
         'biometricStress': currentBio,
       },
+      // [추가됨] 차트가 날짜를 인식할 수 있도록 Timestamp 필드 추가!
+      'timestamp': Timestamp.fromDate(DateTime.now()),
+
       'lastUpdated': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }

@@ -357,17 +357,33 @@ class EmotionTrackingTabState extends State<EmotionTrackingTab> {
           ),
           const SizedBox(height: 24.0),
           if (_currentUserId != null) ...[
-            _buildWeeklyMetricChart('건강 점수', const Color(0xFF3B82F6), _firestoreService.getMentalHealthScoresStream(_currentUserId!)),
+            // [수정 1] 건강 점수 차트 연결 변경
+            _buildWeeklyMetricChart(
+                '건강 점수',
+                const Color(0xFF3B82F6),
+                // 1. 스트림을 daily_mental_status 리스트를 가져오는 것으로 변경
+                _firestoreService.getDailyMentalStatusListStream(_currentUserId!),
+                // 2. finalOverallScore가 저장된 필드명 'overallScore'를 지정
+                dataField: 'overallScore'
+            ),
+
             const SizedBox(height: 24.0),
+
+            // 수면 시간은 기존 유지
             _buildWeeklyMetricChart('수면 시간', const Color(0xFFA855F7), _buildSleepDataStream(), dataField: 'duration', isSleepData: true),
+
             const SizedBox(height: 24.0),
+
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
+                // [수정 2] 평균 건강 점수 계산 로직 변경
                 _buildAverageSummaryItem(
                   '평균 건강점수',
-                  _firestoreService.getMentalHealthScoresStream(_currentUserId!),
-                      (data) => (data['score'] as num).toDouble(),
+                  // 스트림 변경
+                  _firestoreService.getDailyMentalStatusListStream(_currentUserId!),
+                  // 데이터를 꺼내는 로직 변경 (score -> overallScore)
+                      (data) => (data['overallScore'] as num?)?.toDouble() ?? 0.0,
                   '',
                 ),
                 _buildAverageSummaryItem(
@@ -931,21 +947,37 @@ class EmotionTrackingTabState extends State<EmotionTrackingTab> {
             final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
             final endOfWeek = startOfWeek.add(const Duration(days: 6));
 
+            // ✅ [수정] timestamp 또는 date 문자열에서 날짜 파싱
+            DateTime? parseDateFromData(Map<String, dynamic> scoreData) {
+              final timestamp = scoreData['timestamp'];
+              if (timestamp != null && timestamp is Timestamp) {
+                return timestamp.toDate();
+              } else if (scoreData['date'] != null) {
+                try {
+                  return DateTime.parse(scoreData['date'] as String);
+                } catch (e) {
+                  return null;
+                }
+              }
+              return null;
+            }
+
             final filteredData = data.where((scoreData) {
-              final timestamp = scoreData['timestamp'] as Timestamp?;
-              if (timestamp == null) return false;
-              final date = timestamp.toDate();
-              // 정확한 주간 범위 필터링
+              final date = parseDateFromData(scoreData);
+              if (date == null) return false;
+
               final startOfDay = DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day);
               final endOfDay = DateTime(endOfWeek.year, endOfWeek.month, endOfWeek.day, 23, 59, 59);
               return !date.isBefore(startOfDay) && !date.isAfter(endOfDay);
             }).toList();
 
             for (var scoreData in filteredData) {
-              final timestamp = (scoreData['timestamp'] as Timestamp).toDate();
+              final dateTime = parseDateFromData(scoreData);
+              if (dateTime == null) continue;
+
               final score = (scoreData[dataField] as num?)?.toDouble();
               if (score != null) {
-                dailyAggregatedScores.putIfAbsent(timestamp.weekday, () => []).add(score);
+                dailyAggregatedScores.putIfAbsent(dateTime.weekday, () => []).add(score);
               }
             }
 
@@ -974,7 +1006,6 @@ class EmotionTrackingTabState extends State<EmotionTrackingTab> {
             }
 
             maxY = isSleepData ? (maxY == 0 ? 10 : (maxY * 1.2).ceilToDouble()) : 100;
-
 
             return SizedBox(
               height: 140,
