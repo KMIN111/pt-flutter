@@ -1,6 +1,16 @@
 # Personal Therapy: 마음을 치유하는 Flutter 앱
 
-Personal Therapy는 사용자의 정서적 웰빙을 증진시키고 정신 건강을 관리하는 데 도움을 주기 위해 설계된 Flutter 기반 모바일 애플리케이션입니다. 감정 추적, 건강 지표 모니터링, 그리고 개인화된 AI 상담 기능을 통해 사용자가 자신을 더 잘 이해하고 건강한 삶을 유지하도록 지원합니다.
+Personal Therapy는 사용자의 **정서적 웰빙을 증진시키고 정신 건강을 관리**하는 데 도움을 주기 위해 설계된 Flutter 기반 모바일 애플리케이션입니다. **감정 추적, 건강 지표 모니터링, 그리고 개인화된 AI 상담 기능**을 통해 사용자가 자신을 더 잘 이해하고 건강한 삶을 유지하도록 지원합니다.
+
+
+## 🎥 시연 영상
+### [Watch on YouTube](https://youtube.com/watch?v=V8zi0g7k4C0&si=hNSvKjynPQNEC5Yo)
+
+<a href="https://www.youtube.com/watch?v=V8zi0g7k4C0">
+  <img src="https://img.youtube.com/vi/V8zi0g7k4C0/0.jpg" alt="Personal Therapy 시연 영상" width="700" />
+</a>
+
+---
 
 ## ✨ 주요 기능
 
@@ -90,7 +100,23 @@ Personal Therapy는 사용자의 정서적 웰빙을 증진시키고 정신 건�
     ```bash
     flutter run -d <device_id>
     ```
-    
+
+5.  **워치 앱 연동 및 설치**:
+    - 연결된 디바이스 확인:
+    ```bash
+    adb devices
+    ```
+    - 워치 무선 연결 (IP 주소와 포트는 워치의 '무선 디버깅' 설정에서 확인 가능)
+    ```bash
+    adb connect 192.168.219.100:<watch_IP>
+    ```
+    - 워치 앱 설치(Debug 모드)
+    ```bash
+    ./gradlew :wear:installDebug
+    ```
+
+---
+
 
 ### 디렉터리 구조
 
